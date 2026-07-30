@@ -1,0 +1,74 @@
+You've built your synth, but the timing feels "loose." Fast arpeggios jitter, and tight percussion tracks sound like they're dragging because your MIDI notes are snapping to the start of your audio buffers.
+
+## The problem with asynchronous MIDI
+
+MIDI events arrive asynchronously from hardware or the UI. But audio is processed in discrete blocks on a real-time thread. If you handle MIDI the moment it arrives in your message thread, you get severe race conditions. If you pass it to the audio thread but apply it carelessly, you get sloppy timing and jitter.
+
+## The wrong way: Buffer snapping
+
+The most common mistake is applying all incoming MIDI events at `sample 0` of the current audio block, then rendering the whole buffer.
+
+```cpp
+void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    // WRONG: Applying all events at once
+    for (const auto metadata : midiMessages)
+    {
+        handleMidiMessage(metadata.getMessage());
+    }
+
+    // WRONG: Rendering the entire block after state changes
+    renderAudio(buffer, 0, buffer.getNumSamples());
+}
+```
+
+If your buffer size is 512 samples at 44.1kHz, that is nearly 12 milliseconds of potential jitter. Every note gets quantized to a 12ms grid. It feels sluggish and unprofessional.
+
+## The right way: Sub-block processing
+
+Every MIDI event must be timestamped with a sample index relative to the start of the current audio block. (In JUCE, `juce::MidiBuffer` handles this timestamping for you).
+
+Instead of processing the entire block at once, you iterate through the audio block in chunks. You render audio up to the exact sample where the next MIDI event occurs, apply the state change (like a note-on triggering an envelope), and then continue rendering the next chunk of audio.
+
+```cpp
+void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    int currentSample = 0;
+    const int numSamples = buffer.getNumSamples();
+
+    for (const auto metadata : midiMessages)
+    {
+        const auto message = metadata.getMessage();
+        const int messagePosition = metadata.samplePosition;
+
+        // Process audio up to the exact sample of this MIDI event
+        const int numSamplesToProcess = messagePosition - currentSample;
+        
+        if (numSamplesToProcess > 0)
+        {
+            renderAudio(buffer, currentSample, numSamplesToProcess);
+            currentSample += numSamplesToProcess;
+        }
+
+        // Apply the MIDI event state change exactly when it occurs
+        handleMidiMessage(message);
+    }
+
+    // Process any remaining audio after the last MIDI event
+    const int remainingSamples = numSamples - currentSample;
+    
+    if (remainingSamples > 0)
+    {
+        renderAudio(buffer, currentSample, remainingSamples);
+    }
+}
+```
+
+To make this work, your internal `renderAudio` DSP function must be able to render arbitrary chunk sizes starting at arbitrary offsets, rather than assuming it will always process `buffer.getNumSamples()` starting at index 0.
+
+## Summary
+
+- **Never apply MIDI in the message thread.** Pass it safely to the audio callback.
+- **Never snap events to sample 0.** Applying all events at the start of a buffer causes unacceptable jitter.
+- **Timestamp everything.** Calculate exact sample offsets within the block for every event.
+- **Process in chunks.** Render DSP up to the event, update state, and resume rendering.

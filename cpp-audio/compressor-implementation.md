@@ -1,0 +1,100 @@
+Building a compressor seems straightforward until you write the code and realize your naive volume-scaling algorithm sounds like a distorted, chattering mess. To get that tight, professional dynamic control in a DAW, you can't just multiply samples by a fraction when they get too loud—you have to build a system that *listens* to the signal and reacts smoothly over time.
+
+## The Anatomy of a Compressor
+
+At its core, a compressor is an automatic volume fader. When the signal exceeds a specific limit (Threshold), it turns the volume down by a specific factor (Ratio). 
+
+To implement this in DSP, you need four distinct blocks:
+1. **Level Detector**: Measures how loud the incoming signal is (usually Peak or RMS).
+2. **Gain Computer**: Calculates how much we *should* turn the signal down based on our Threshold and Ratio settings.
+3. **Envelope Follower**: Smooths out that gain reduction using Attack and Release times so we don't introduce clipping distortion.
+4. **Multiplier**: Applies the smoothed gain reduction to the actual audio.
+
+## Feed-Forward vs. Feedback Topologies
+
+**The WRONG way:** Trying to blindly port vintage analog feedback compressor topologies into the digital domain without accounting for the mandatory one-sample delay. A true feedback compressor reads the level *after* the gain reduction has been applied. In code, this creates a recursive loop that is notoriously difficult to tune without causing instability or requiring zero-delay feedback (ZDF) solvers.
+
+**The RIGHT way:** Start with a **Feed-Forward** topology. You measure the level of the *uncompressed input*, calculate the required gain reduction, and apply it. It is perfectly stable, predictable, and the standard for most modern digital plugins.
+
+## The Math: Logarithmic Gain and Smoothing
+
+**The WRONG way:** Calculating your gain reduction in the linear amplitude domain. Human hearing is logarithmic, and if you try to apply ratios to linear audio samples (0.0 to 1.0), the compression curve will sound completely unnatural.
+
+**The RIGHT way:** Work in decibels.
+
+First, convert your detected level to dB. If the level exceeds your threshold, calculate the required gain reduction:
+
+```cpp
+float gainReductionDB = 0.0f;
+if (levelDB > thresholdDB) {
+    gainReductionDB = (levelDB - thresholdDB) * (1.0f - 1.0f / ratio);
+}
+```
+
+Next, you must smooth this gain reduction. If you instantly drop the gain the exact millisecond a transient hits, you are effectively redrawing the waveform, which equals clipping distortion. We use a simple one-pole lowpass filter as our envelope follower:
+
+`y[n] = x[n] * alpha + y[n-1] * (1 - alpha)`
+
+Your `alpha` coefficient changes depending on whether the gain reduction is increasing (Attack) or decreasing (Release). 
+
+## A Clean C++ Implementation
+
+Here is a practical, production-ready feed-forward compressor loop tailored for a JUCE `processBlock`. 
+
+```cpp
+void Compressor::processBlock(juce::AudioBuffer<float>& buffer)
+{
+    const int numSamples = buffer.getNumSamples();
+    const int numChannels = buffer.getNumChannels();
+    
+    // Convert time-based parameters to filter coefficients
+    // formula: exp(-1.0 / (sampleRate * timeInSeconds))
+    float attackCoeff = std::exp(-1.0f / (sampleRate * attackTimeSec));
+    float releaseCoeff = std::exp(-1.0f / (sampleRate * releaseTimeSec));
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        // 1. Level Detection (Peak of all channels for stereo linking)
+        float maxPeak = 0.0f;
+        for (int ch = 0; ch < numChannels; ++ch) {
+            float sample = std::abs(buffer.getReadPointer(ch)[i]);
+            if (sample > maxPeak) maxPeak = sample;
+        }
+
+        // Prevent log10(0)
+        maxPeak = juce::jmax(maxPeak, 1e-5f); 
+
+        // 2. Gain Computer (in dB)
+        float levelDB = 20.0f * std::log10(maxPeak);
+        float targetGainReductionDB = 0.0f;
+
+        if (levelDB > thresholdDB) {
+            targetGainReductionDB = (levelDB - thresholdDB) * (1.0f - 1.0f / ratio);
+        }
+
+        // 3. Envelope Follower
+        // Are we attacking (gain reduction increasing) or releasing?
+        float alpha = (targetGainReductionDB > currentGainReductionDB) ? attackCoeff : releaseCoeff;
+        
+        currentGainReductionDB = (targetGainReductionDB * (1.0f - alpha)) + (currentGainReductionDB * alpha);
+
+        // Convert dB reduction back to linear multiplier
+        float linearGain = std::pow(10.0f, -currentGainReductionDB / 20.0f);
+        
+        // Apply makeup gain
+        linearGain *= std::pow(10.0f, makeupGainDB / 20.0f);
+
+        // 4. Multiplier
+        for (int ch = 0; ch < numChannels; ++ch) {
+            buffer.getWritePointer(ch)[i] *= linearGain;
+        }
+    }
+}
+```
+
+## Summary
+
+- Always calculate your Threshold and Ratio in the decibel domain, never linear.
+- Envelope followers are just one-pole lowpass filters swapping between two coefficients (Attack and Release).
+- Stick to a Feed-Forward topology unless you explicitly need the specific squish of an analog-style feedback circuit.
+- Always stereo-link your detection (find the max peak across channels) so the stereo image doesn't shift wildly when an aggressive transient hits only one side.

@@ -28,11 +28,11 @@ Each links to its answer document when written.
 | 19 | How do I handle multi-channel audio routing in C++? | multi-channel-audio-routing | ✅ Written |
 | 20 | How do I implement crossfading between clips in a C++ timeline? | crossfading-between-clips | ✅ Written |
 | 21 | How do I implement sample rate conversion in C++? | sample-rate-conversion | ✅ Written |
-| 22 | How do I profile and optimize a C++ audio processing chain? | profiling-audio-processing | 📝 Queued |
-| 23 | How do I handle MIDI timing accurately in a C++ audio app? | midi-timing | 📝 Queued |
-| 24 | Why does my audio app use 100% CPU and how do I fix it? | cpu-overload-audio-app | 📝 Queued |
-| 25 | How do I implement a compressor in C++ for a DAW? | compressor-implementation | 📝 Queued |
-| 26 | How do I handle floating point precision errors in audio processing in C++? | floating-point-precision-audio | 📝 Queued |
+| 22 | How do I profile and optimize a C++ audio processing chain? | profiling-audio-processing | ✅ Written |
+| 23 | How do I handle MIDI timing accurately in a C++ audio app? | midi-timing | ✅ Written |
+| 24 | Why does my audio app use 100% CPU and how do I fix it? | cpu-overload-audio-app | ✅ Written |
+| 25 | How do I implement a compressor in C++ for a DAW? | compressor-implementation | ✅ Written |
+| 26 | How do I handle floating point precision errors in audio processing in C++? | floating-point-precision-audio | ✅ Written |
 | 27 | How do I implement latency compensation in a C++ audio graph? | latency-compensation | 📝 Queued |
 | 28 | How do I implement real-time audio recording in C++? | realtime-audio-recording | 📝 Queued |
 | 29 | How do I implement tempo-synced audio effects in C++? | tempo-synced-effects | 📝 Queued |
