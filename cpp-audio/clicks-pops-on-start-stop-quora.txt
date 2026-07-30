@@ -1,0 +1,215 @@
+﻿====
+QUORA FORMATTING NOTES:
+- Paste this text directly into Quora's answer editor.
+- For every [CODE BLOCK] marker: select that block's content and click Quora's { } code button.
+- Section titles (e.g. "What's Actually Happening") should be selected and set to H2 using Quora's heading button.
+- The summary at the end is a bullet list — Quora's bullet tool works fine there.
+- Remove these ==== lines before publishing.
+====
+
+You hit play, and there's a sharp crack. You hit stop, same thing. The audio itself sounds fine — it's only the transitions that pop. This is one of the most common audio programming bugs, and it has one root cause: a discontinuous jump in the waveform.
+
+
+What's Actually Happening
+
+Your DAC is outputting a stream of sample values — numbers between -1.0 and 1.0 that represent the position of a speaker cone at each instant in time. If one sample is 0.0 and the next is 0.87, the speaker cone has to teleport. Physically, that means an instantaneous pressure spike — a high-frequency transient that your ear hears as a click or pop.
+
+This is not a bug in your driver, your audio interface, or your OS. It's a math problem. You created a discontinuity in the signal, and physics did the rest.
+
+
+The Wrong Way
+
+The most common version of this mistake looks like this:
+
+[CODE BLOCK]
+// WRONG — instant gain switching in the audio callback
+void MyAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+{
+    if (isPlaying)
+        gain = 1.0f;
+    else
+        gain = 0.0f;   // Jumps from whatever the last sample was to 0.0 instantly
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+    {
+        auto* data = buffer.getWritePointer(ch);
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
+            data[i] *= gain;
+    }
+}
+[END CODE BLOCK]
+
+Or even more subtly wrong — silencing the buffer at the block boundary:
+
+[CODE BLOCK]
+// ALSO WRONG — silence the buffer when stopped
+if (!isPlaying)
+    buffer.clear();  // last sample of previous block to 0.0 in one step
+[END CODE BLOCK]
+
+Both cause the same artifact. The waveform was at some nonzero value at the end of the last block, and now it's at zero. Click.
+
+
+The Solution: Ramping
+
+The fix is to never jump. Smoothly interpolate between your current amplitude and your target amplitude over a short window — typically 5–20 ms. This gives the waveform enough time to gracefully approach silence (or full amplitude) without creating a transient.
+
+Here's a minimal RampedGain class that works correctly for start/stop:
+
+[CODE BLOCK]
+class RampedGain
+{
+public:
+    RampedGain() = default;
+
+    void prepare(double sampleRate, double rampLengthSeconds = 0.010)
+    {
+        rampSamples = static_cast<int>(sampleRate * rampLengthSeconds);
+        currentGain = 0.0f;
+        targetGain  = 0.0f;
+        samplesRemaining = 0;
+    }
+
+    void setTarget(float target)
+    {
+        targetGain       = target;
+        samplesRemaining = rampSamples;
+        // stepSize calculated from wherever we currently are — not from 0
+        stepSize = (targetGain - currentGain) / static_cast<float>(samplesRemaining);
+    }
+
+    void start() { setTarget(1.0f); }
+    void stop()  { setTarget(0.0f); }
+
+    void process(float* data, int numSamples)
+    {
+        for (int i = 0; i < numSamples; ++i)
+        {
+            if (samplesRemaining > 0)
+            {
+                currentGain += stepSize;
+                --samplesRemaining;
+
+                if (samplesRemaining == 0)
+                    currentGain = targetGain;  // clamp to avoid float drift
+            }
+
+            data[i] *= currentGain;
+        }
+    }
+
+private:
+    float currentGain     = 0.0f;
+    float targetGain      = 0.0f;
+    float stepSize        = 0.0f;
+    int   samplesRemaining = 0;
+    int   rampSamples      = 0;
+};
+[END CODE BLOCK]
+
+And usage inside a JUCE audio processor:
+
+[CODE BLOCK]
+RampedGain ramp;
+
+void prepareToPlay(double sampleRate, int) override
+{
+    ramp.prepare(sampleRate, 0.010); // 10ms ramp
+}
+
+void onPlay() { ramp.start(); }
+void onStop() { ramp.stop();  }
+
+void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+{
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        ramp.process(buffer.getWritePointer(ch), buffer.getNumSamples());
+}
+[END CODE BLOCK]
+
+
+The Production Solution: JUCE SmoothedValue
+
+If you're already in JUCE, don't roll your own. juce::SmoothedValue<float> handles this correctly and is safe for parameter changes arriving from the message thread:
+
+[CODE BLOCK]
+juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> gainRamp;
+
+void prepareToPlay(double sampleRate, int) override
+{
+    gainRamp.reset(sampleRate, 0.010); // 10ms smoothing time
+    gainRamp.setCurrentAndTargetValue(0.0f);
+}
+
+void onPlay() { gainRamp.setTargetValue(1.0f); }
+void onStop() { gainRamp.setTargetValue(0.0f); }
+
+void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+{
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+    {
+        auto* data = buffer.getWritePointer(ch);
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
+            data[i] *= gainRamp.getNextValue();
+    }
+}
+[END CODE BLOCK]
+
+SmoothedValue also supports Multiplicative smoothing, which gives a more perceptually linear fade — useful for volume controls rather than hard gating.
+
+
+The "Last Sample" Problem
+
+Here's a subtler version of the bug that catches people even after they add ramping:
+
+[CODE BLOCK]
+// BUG: assumes the ramp always starts from 0
+void onPlay()
+{
+    currentGain = 0.0f;   // WRONG if we stopped mid-fade
+    targetGain  = 1.0f;
+}
+[END CODE BLOCK]
+
+Scenario: the user hits stop, the ramp starts moving toward 0.0. Three milliseconds later they hit play again. currentGain is now 0.72f. If you reset it to 0.0f and ramp to 1.0f, you've created a discontinuity at the reset point. Click.
+
+The correct approach is what the RampedGain class above does: always call setTarget() from currentGain — never reset it manually. SmoothedValue handles this correctly out of the box. Calling setTargetValue() mid-ramp picks up from wherever it currently is.
+
+
+Bonus: DC Offset Clicks
+
+If your audio signal has a DC component — a constant positive or negative bias — gating it on or off will also click, even if you think your signal is "at zero" when silent.
+
+[CODE BLOCK]
+// Your oscillator might produce a signal that rests at +0.05 instead of 0.0
+// Gating it produces a 0.05 -> 0 jump. Still a click.
+[END CODE BLOCK]
+
+The fix:
+1. High-pass filter your signal — even a first-order filter at ~5 Hz strips DC without touching audio content.
+2. Or ensure your ramp starts from the actual last output sample value, not from an assumed rest position.
+
+A simple one-pole DC blocker, per channel:
+
+[CODE BLOCK]
+float dcBlocker = 0.0f;  // per-channel state
+const float dcCoeff = 0.9995f;
+
+// Per sample:
+float input  = rawSample;
+float output = input - dcBlocker;
+dcBlocker    = dcBlocker * dcCoeff + input * (1.0f - dcCoeff);
+// 'output' is now DC-free
+[END CODE BLOCK]
+
+
+The Rule
+
+- Start playback: DON'T set gain = 1.0f instantly. DO ramp from current value to 1.0 over 5–20ms.
+- Stop playback: DON'T set gain = 0.0f or call buffer.clear(). DO ramp from current value to 0.0 over 5–20ms.
+- Restart mid-fade: DON'T reset currentGain = 0.0f. DO continue the ramp from wherever it currently is.
+- DC-biased signal: DON'T gate directly. DO high-pass filter first, then ramp.
+
+The rule: never make a discontinuous jump in an audio signal.
+
+A click is the waveform screaming that you teleported the speaker cone. Ramp everything — gains, pitches, filter cutoffs, wet/dry levels. If a parameter changes faster than ~5ms, your ears will notice.

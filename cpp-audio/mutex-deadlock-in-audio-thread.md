@@ -1,0 +1,257 @@
+﻿# Why Does My Audio App Deadlock When I Use a Mutex in the Audio Thread?
+
+You added one small `std::mutex` to protect a shared value, and now your app freezes solid or stutters catastrophically under load. The audio thread is spinning, the UI is stuck, and no amount of `lock_guard` scoping seems to fix it. Welcome to priority inversion — the most common and least-obvious bug in real-time audio programming.
+
+---
+
+## What Is Priority Inversion?
+
+Your audio callback runs on a **high-priority real-time thread**. The OS schedules it preemptively and gives it near-exclusive access to the CPU when it needs to run — that's what makes low-latency audio possible.
+
+Your UI runs on a **normal-priority thread**.
+
+Here's what happens when they share a mutex:
+
+1. The UI thread acquires the mutex (e.g., to update a parameter).
+2. The OS preempts the UI thread mid-lock — it gets suspended.
+3. The audio callback fires. It tries to acquire the same mutex. **It blocks.**
+4. Now the OS must let the UI thread run again to release the mutex — but the audio thread is *higher priority*, so the scheduler keeps trying to give CPU time to the audio thread.
+5. The UI thread never gets scheduled. The mutex is never released. The audio thread waits forever.
+
+This is **priority inversion**, and in the worst case it becomes a true deadlock. In a softer case, you get a **livelock** — the audio thread burns CPU spinning and waiting, causing glitches, dropouts, and eventually a watchdog kill.
+
+> **Key insight:** A mutex is a blocking primitive. Blocking in a real-time thread is always wrong — even for a microsecond.
+
+---
+
+## The Wrong Way: `std::mutex` Across Threads
+
+```cpp
+// WRONG — Do not do this
+
+class MyProcessor : public juce::AudioProcessor
+{
+public:
+    // UI thread calls this
+    void setGain(float newGain)
+    {
+        std::lock_guard<std::mutex> lock(gainMutex);
+        gain = newGain;
+    }
+
+    // Audio thread calls this — 512 times per second at 44.1kHz/128 samples
+    void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+    {
+        std::lock_guard<std::mutex> lock(gainMutex); // <- DANGER: can block here
+        for (auto channel = 0; channel < buffer.getNumChannels(); ++channel)
+            buffer.applyGain(channel, 0, buffer.getNumSamples(), gain);
+    }
+
+private:
+    std::mutex gainMutex;
+    float gain = 1.0f;
+};
+```
+
+This looks completely reasonable. It is completely wrong. Under normal conditions it may even appear to work — right up until a GC pause, a system event, or a heavy UI repaint causes the OS to preempt the UI thread at exactly the wrong moment.
+
+---
+
+## The Right Way: Lock-Free Primitives
+
+### For Simple Scalar Values: `std::atomic`
+
+For a single float, integer, or bool — use `std::atomic`. Reads and writes are guaranteed atomic on all modern architectures for appropriately sized types.
+
+```cpp
+// CORRECT — for simple values
+
+class MyProcessor : public juce::AudioProcessor
+{
+public:
+    // UI thread — safe to write from any thread
+    void setGain(float newGain)
+    {
+        gain.store(newGain, std::memory_order_relaxed);
+    }
+
+    void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+    {
+        const float currentGain = gain.load(std::memory_order_relaxed);
+        for (auto channel = 0; channel < buffer.getNumChannels(); ++channel)
+            buffer.applyGain(channel, 0, buffer.getNumSamples(), currentGain);
+    }
+
+private:
+    std::atomic<float> gain { 1.0f };
+};
+```
+
+`memory_order_relaxed` is appropriate here because we do not need ordering guarantees relative to other variables — just atomicity of the load/store itself.
+
+---
+
+### For Messages and Commands: `AbstractFifo` + Ring Buffer
+
+When you need to pass more complex data — a new wavetable, a preset change, a MIDI message block — you need a lock-free queue. JUCE's `AbstractFifo` is purpose-built for this.
+
+```cpp
+// CORRECT — lock-free FIFO for passing commands to the audio thread
+
+struct AudioCommand
+{
+    enum class Type { SetGain, SetFrequency, LoadWavetable };
+    Type type;
+    float value;
+};
+
+class MyProcessor : public juce::AudioProcessor
+{
+public:
+    MyProcessor() : commandFifo(128), commandBuffer(128) {}
+
+    // Called from UI thread — writes into the FIFO, never blocks
+    void sendCommand(AudioCommand cmd)
+    {
+        int start1, size1, start2, size2;
+        commandFifo.prepareToWrite(1, start1, size1, start2, size2);
+
+        if (size1 > 0)
+            commandBuffer[start1] = cmd;
+        else if (size2 > 0)
+            commandBuffer[start2] = cmd;
+
+        commandFifo.finishedWrite(size1 + size2);
+    }
+
+    void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+    {
+        // Drain commands — lock-free, wait-free
+        int start1, size1, start2, size2;
+        commandFifo.prepareToRead(commandFifo.getNumReady(), start1, size1, start2, size2);
+
+        for (int i = start1; i < start1 + size1; ++i)
+            applyCommand(commandBuffer[i]);
+        for (int i = start2; i < start2 + size2; ++i)
+            applyCommand(commandBuffer[i]);
+
+        commandFifo.finishedRead(size1 + size2);
+
+        // ... process audio
+    }
+
+private:
+    void applyCommand(const AudioCommand& cmd)
+    {
+        switch (cmd.type)
+        {
+            case AudioCommand::Type::SetGain:      gain = cmd.value; break;
+            case AudioCommand::Type::SetFrequency: frequency = cmd.value; break;
+            default: break;
+        }
+    }
+
+    juce::AbstractFifo commandFifo;
+    std::vector<AudioCommand> commandBuffer;
+
+    float gain      = 1.0f;
+    float frequency = 440.0f;
+};
+```
+
+`AbstractFifo` uses a classic single-producer/single-consumer ring buffer pattern. The write index and read index are stored as atomics internally. No locks, no waits, no blocking — safe to call from the audio thread.
+
+---
+
+## The Sneaky Case: Hidden Locks Inside Library Calls
+
+This is the one that catches experienced developers. Your code has no mutex. But you call a function from the audio callback that **internally takes a lock**.
+
+Common offenders:
+
+- **Logging libraries** — almost all of them take a lock to write to a shared log buffer. `spdlog`, `glog`, `std::cout` — all unsafe in the audio thread.
+- **`malloc` / `new` / `delete`** — the system allocator uses locks. Any heap allocation in the audio callback is a potential priority inversion.
+- **`printf` / `std::cout`** — these call into the OS and can block on I/O.
+- **JUCE's own `DBG()` macro** — fine in debug builds on your dev machine; catastrophic in production or on a loaded system.
+- **Some OS calls** — `gettimeofday()` on certain Linux kernels, `mach_absolute_time()` wrappers on some macOS versions.
+- **Plugin APIs** — if a VST3 plugin you are hosting calls `malloc` internally, that is your problem too.
+
+```cpp
+void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+{
+    // Every one of these is WRONG in a real-time callback:
+
+    DBG("processBlock called");                     // locks internally (debug builds)
+    juce::Logger::writeToLog("tick");               // file I/O + lock
+    auto* data = new float[buffer.getNumSamples()]; // heap alloc = potential lock
+    std::cout << "gain: " << gain << std::endl;    // I/O lock
+
+    // This one is subtle — if someString is juce::String and gets copied,
+    // the reference count update may allocate:
+    juce::String label = currentPresetName;         // possible alloc
+}
+```
+
+The right approach: **pre-allocate everything before the callback fires**, and use a dedicated lock-free logger that writes to a ring buffer which the UI thread drains.
+
+```cpp
+// Safe real-time logging pattern: audio thread writes to a ring buffer,
+// UI thread drains it on a timer
+
+class RTLogger
+{
+public:
+    void logFromAudioThread(const char* msg)
+    {
+        // memcpy into pre-allocated ring buffer — no alloc, no lock
+        int start1, size1, start2, size2;
+        fifo.prepareToWrite(1, start1, size1, start2, size2);
+        if (size1 > 0)
+            std::strncpy(buffer[start1], msg, kMaxMsgLen);
+        fifo.finishedWrite(size1);
+    }
+
+    void drainOnUIThread(std::function<void(const char*)> callback)
+    {
+        // Call this from a juce::Timer on the message thread
+        int start1, size1, start2, size2;
+        fifo.prepareToRead(fifo.getNumReady(), start1, size1, start2, size2);
+        for (int i = start1; i < start1 + size1; ++i)
+            callback(buffer[i]);
+        for (int i = start2; i < start2 + size2; ++i)
+            callback(buffer[i]);
+        fifo.finishedRead(size1 + size2);
+    }
+
+private:
+    static constexpr int kMaxMsgLen = 128;
+    static constexpr int kBufSize   = 256;
+
+    juce::AbstractFifo fifo { kBufSize };
+    char buffer[kBufSize][kMaxMsgLen] {};
+};
+```
+
+---
+
+## The Rule
+
+> **Treat the audio callback like an interrupt handler.**
+>
+> - **No locks** — not even a `std::mutex::try_lock()`
+> - **No waits** — no `std::condition_variable`, no `sleep`, no spin loops
+> - **No syscalls** — no file I/O, no heap allocation, no logging, no `printf`
+> - **No exceptions** — throwing crosses into non-deterministic territory
+> - **Pre-allocate everything** — buffers, lookup tables, delay lines — before the callback starts
+
+### Quick Reference
+
+| Scenario | Wrong | Right |
+|---|---|---|
+| Shared scalar (gain, frequency) | `std::mutex` + float | `std::atomic<float>` |
+| Command from UI to audio | `std::mutex` + queue | `AbstractFifo` / lock-free queue |
+| Logging from audio thread | `DBG()`, `std::cout` | Lock-free ring buffer, drained on UI thread |
+| Allocating scratch memory | `new` / `malloc` in callback | Pre-allocate in `prepareToPlay()` |
+| Accessing shared objects | `std::shared_ptr` (ref count = alloc) | Raw pointer to pre-allocated object |
+
+The audio callback is not a normal function. It runs in a different scheduling universe from the rest of your application. The moment you import any blocking primitive into that universe, you have introduced a time bomb.

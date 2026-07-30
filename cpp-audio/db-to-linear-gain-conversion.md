@@ -1,0 +1,211 @@
+# How do I convert between dB and linear gain correctly in C++?
+
+The math is two lines. The bugs are everywhere anyway — and the worst ones are the ones that sound "almost right."
+
+---
+
+## Why Developers Keep Getting This Wrong
+
+dB conversion looks trivial, so it gets copy-pasted, cargo-culted, or written from memory. The single most common mistake — using `/10` instead of `/20` for amplitude — produces gain errors that are systematic, always present, and surprisingly hard to catch by ear because the shape of the response is preserved while only the magnitude is wrong.
+
+The second most common mistake is not handling `log(0)`, which crashes or produces `-inf` and NaN that silently corrupt downstream signal.
+
+---
+
+## The Two Formulas — And Why There Are Two
+
+The decibel is defined in terms of **power**:
+
+```
+dB = 10 * log10(P2 / P1)
+```
+
+Audio engineers almost always work with **amplitude** (voltage, sample values), not power. Power is proportional to the square of amplitude, so:
+
+```
+dB = 10 * log10(A² / A_ref²)
+     = 10 * log10((A / A_ref)²)
+     = 20 * log10(A / A_ref)
+```
+
+That factor of 2 gives you the `/20` rule for amplitude.
+
+| Domain    | Linear → dB              | dB → Linear              |
+|-----------|--------------------------|--------------------------|
+| Amplitude | `20 * log10(linear)`     | `pow(10, dB / 20.0f)`   |
+| Power     | `10 * log10(linear)`     | `pow(10, dB / 10.0f)`   |
+
+**In audio DSP you almost always want amplitude (`/20`).** Power ratios are for acoustic measurements and filter design, not for setting fader gain.
+
+---
+
+## The `/10` vs `/20` Error, Illustrated
+
+If you use `/10` when you mean `/20`:
+
+- A value of `-6 dB` becomes `0.25` instead of `~0.501`
+- A value of `-20 dB` becomes `0.01` instead of `0.1`
+- Every gain stage is wrong by a factor of `sqrt(correct_value)`
+
+The curve shape is the same — which is why it *sounds* like it's working. But your `-20 dB` fader position is actually attenuating by `-40 dB`. You'll notice it when you try to null two signal paths.
+
+---
+
+## Clean C++ Implementation
+
+```cpp
+#include <cmath>
+#include <limits>
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Amplitude (sample values, voltage). This is what you want in audio DSP.
+// 0 dBFS = 1.0f, +6 dBFS ≈ 2.0f, -6 dBFS ≈ 0.501f
+// ─────────────────────────────────────────────────────────────────────────────
+
+static constexpr float kMinusInfDb = -144.0f; // below 24-bit noise floor
+
+inline float dbToLinear(float db) noexcept
+{
+    return std::pow(10.0f, db / 20.0f);
+}
+
+inline float linearToDb(float linear) noexcept
+{
+    // Guard against log(0) = -inf and log(negative) = NaN
+    if (linear <= 0.0f)
+        return kMinusInfDb;
+
+    return 20.0f * std::log10(linear);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Power variant — use this only when you're dealing with power ratios,
+// e.g. noise floor measurements, filter insertion loss.
+// ─────────────────────────────────────────────────────────────────────────────
+
+inline float dbToLinearPower(float db) noexcept
+{
+    return std::pow(10.0f, db / 10.0f);
+}
+
+inline float linearToDbPower(float linear) noexcept
+{
+    if (linear <= 0.0f)
+        return kMinusInfDb * 2.0f; // scale appropriately for power domain
+    return 10.0f * std::log10(linear);
+}
+```
+
+### The Silence Guard In Detail
+
+`std::log10(0.0f)` is defined by IEEE 754 to return `-INFINITY`. That is *not* a crash — but `-INFINITY` and `NaN` will propagate through your signal graph silently (multiplying by `-inf` gives `-inf`; comparing returns false; etc.). Return a finite floor value instead.
+
+The choice of `-144.0f` is deliberate: it is below the noise floor of a 24-bit system (`-144 dBFS`), so it is indistinguishable from silence in any real output path.
+
+---
+
+## The dBFS Convention
+
+In floating-point digital audio:
+
+| dBFS  | Linear |
+|-------|--------|
+| +12   | 4.0    |
+| +6    | ~2.0   |
+| 0     | 1.0    |
+| -6    | ~0.501 |
+| -12   | ~0.251 |
+| -20   | ~0.1   |
+| -40   | ~0.01  |
+| -60   | ~0.001 |
+| -inf  | 0.0    |
+
+0 dBFS = 1.0 is not a convention you can safely ignore. When a DAW or plugin host sends you a buffer, that is the reference. Clipping is any value with `|x| > 1.0f` — the headroom above 0 dBFS in floating point is purely theoretical (you won't clip the arithmetic), but hardware output clips hard at 0 dBFS.
+
+---
+
+## Fader Curves Are Not Linear in dB Space
+
+This catches everyone eventually. A linear-travel fader that maps `[0, 1]` directly to dB range `[-inf, 0]` is not what commercial products do, because the human perception of loudness is not uniform across the dB scale.
+
+A common production approach is a piecewise mapping that gives finer control near unity gain:
+
+```cpp
+// faderPos: normalized 0.0 (silence) → 1.0 (unity)
+// Returns gain in dB suitable for passing to dbToLinear()
+float faderPosToDb(float faderPos) noexcept
+{
+    // Clamp to safe range
+    faderPos = std::clamp(faderPos, 0.0f, 1.0f);
+
+    if (faderPos < 1e-6f)
+        return kMinusInfDb;
+
+    // Exponential mapping: gives more resolution near 0 dB
+    // At pos=1.0 → 0 dB, pos=0.75 → -12 dB, pos=0.5 → -40 dB
+    // Adjust the exponent to taste (2.0–4.0 are common)
+    constexpr float kDbRange = 60.0f; // fader range in dB
+    constexpr float kExp     = 3.0f;  // curve shape
+
+    float curved = std::pow(faderPos, kExp);
+    return (curved * kDbRange) - kDbRange; // maps [0,1] → [-60, 0] dB
+}
+
+// Usage in a channel strip
+float getChannelGain(float faderPos) noexcept
+{
+    return dbToLinear(faderPosToDb(faderPos));
+}
+```
+
+A full JUCE `AudioProcessorValueTreeState` fader implementation would attach a `NormalisableRange` with a `skew factor` — which does exactly this curve-shaping — but the underlying conversion still goes through `dbToLinear`.
+
+---
+
+## JUCE Context
+
+In JUCE, `juce::Decibels` provides equivalent utilities:
+
+```cpp
+// JUCE built-ins — same math, production-tested
+float linear = juce::Decibels::decibelsToGain(dbValue);         // /20 amplitude
+float db      = juce::Decibels::gainToDecibels(linearValue);    // log10 * 20
+
+// The silence threshold parameter maps directly to kMinusInfDb
+float linear2 = juce::Decibels::decibelsToGain(dbValue, -144.0f);
+```
+
+If you are in JUCE, prefer these. If you are writing portable DSP code that cannot take the JUCE dependency, roll your own from the implementations above.
+
+---
+
+## Reference Table: Common dB Values
+
+| dB    | Linear (amplitude) | Notes                         |
+|-------|--------------------|-------------------------------|
+| +20   | 10.0               | +20 dB boost                  |
+| +12   | ~3.981             | Typical headroom ceiling       |
+| +6    | ~1.995             | "Double" amplitude (approx.)  |
+| +3    | ~1.413             | Half-power point (filters)    |
+| 0     | 1.000              | Unity gain, 0 dBFS reference  |
+| -3    | ~0.708             | Half-power point              |
+| -6    | ~0.501             | "Half" amplitude (approx.)    |
+| -10   | ~0.316             | 10 dB attenuator              |
+| -12   | ~0.251             |                               |
+| -20   | 0.100              | 10x attenuation               |
+| -40   | 0.010              | 100x attenuation              |
+| -60   | 0.001              | 1000x attenuation             |
+| -80   | 0.0001             | Near the floor of 16-bit      |
+| -96   | ~0.0000158         | 16-bit noise floor            |
+| -144  | ~0.00000002        | 24-bit noise floor            |
+| -∞    | 0.000              | Digital silence               |
+
+---
+
+## Summary: The Rules
+
+1. **Always use `/20` for amplitude, `/10` for power.** In audio DSP, you almost always want `/20`.
+2. **Always guard `log(0)`.** Return a finite floor value, not `-INFINITY` or `NaN`.
+3. **0 dBFS = 1.0f.** This is the universal floating-point audio convention.
+4. **Faders use curves, not raw dB.** A linear fader position is not a linear dB map.
+5. **In JUCE, use `juce::Decibels`.** It handles the edge cases and matches host behavior.
