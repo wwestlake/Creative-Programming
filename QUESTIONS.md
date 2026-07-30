@@ -23,11 +23,11 @@ Each links to its answer document when written.
 | 14 | How do I handle plugin state changes without interrupting audio playback in C++? | plugin-state-changes-no-interruption | ✅ Written |
 | 15 | Why does my audio callback timing jitter and what do I do about it? | audio-callback-timing-jitter | ✅ Written |
 | 16 | How do I structure an audio processing graph in C++? | audio-processing-graph | ✅ Written |
-| 17 | How do I safely load and unload VST3 plugins at runtime in C++? | vst3-load-unload-runtime | 📝 Queued |
-| 18 | How do I implement real-time safe logging in a C++ audio app? | realtime-safe-logging | 📝 Queued |
-| 19 | How do I handle multi-channel audio routing in C++? | multi-channel-audio-routing | 📝 Queued |
-| 20 | How do I implement crossfading between clips in a C++ timeline? | crossfading-between-clips | 📝 Queued |
-| 21 | How do I implement sample rate conversion in C++? | sample-rate-conversion | 📝 Queued |
+| 17 | How do I safely load and unload VST3 plugins at runtime in C++? | vst3-load-unload-runtime | ✅ Written |
+| 18 | How do I implement real-time safe logging in a C++ audio app? | realtime-safe-logging | ✅ Written |
+| 19 | How do I handle multi-channel audio routing in C++? | multi-channel-audio-routing | ✅ Written |
+| 20 | How do I implement crossfading between clips in a C++ timeline? | crossfading-between-clips | ✅ Written |
+| 21 | How do I implement sample rate conversion in C++? | sample-rate-conversion | ✅ Written |
 | 22 | How do I profile and optimize a C++ audio processing chain? | profiling-audio-processing | 📝 Queued |
 | 23 | How do I handle MIDI timing accurately in a C++ audio app? | midi-timing | 📝 Queued |
 | 24 | Why does my audio app use 100% CPU and how do I fix it? | cpu-overload-audio-app | 📝 Queued |

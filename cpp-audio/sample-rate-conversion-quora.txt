@@ -1,0 +1,98 @@
+====
+FORMATTING NOTE: Please apply H2 formatting to the ALL CAPS section titles.
+====
+
+You load a 44.1kHz WAV file, but your audio hardware is running at 48kHz. If you just feed the samples to the output one-by-one, your audio will play too fast, and everything will be pitch-shifted up like a chipmunk. 
+
+Here is how you actually handle sample rate conversion in C++ without ruining your audio quality.
+
+THE WRONG WAY: LINEAR INTERPOLATION
+
+The intuitive approach is to just calculate where the new samples should be and draw straight lines between the existing samples (linear interpolation), or even worse, just drop or duplicate samples to make the math fit.
+
+[CODE BLOCK]
+// ❌ WRONG: Linear interpolation causes massive aliasing
+float getInterpolatedSample(const float* buffer, double position) {
+    int index = static_cast<int>(position);
+    float fraction = position - index;
+    float sample1 = buffer[index];
+    float sample2 = buffer[index + 1];
+    
+    return sample1 + fraction * (sample2 - sample1);
+}
+[CODE BLOCK]
+
+While linear interpolation is incredibly cheap on the CPU, it generates horrible high-frequency artifacts (aliasing) because it introduces sharp angles into the waveform. Unless you are intentionally building a lo-fi sampler effect, this is unacceptable for production audio.
+
+THE RIGHT WAY: BAND-LIMITED INTERPOLATION
+
+To properly convert from 44.1kHz to 48kHz without destroying the audio, you have to conceptualize the process differently. 
+
+The mathematical ideal is:
+1. Upsample to a massive common multiple (by inserting zeros between samples).
+2. Apply a strict low-pass filter (an anti-aliasing filter) set to the Nyquist frequency of the lower of the two sample rates.
+3. Downsample to your target rate.
+
+In practice, doing this naively is terribly inefficient. Modern DSP uses polyphase FIR filters or Windowed Sinc interpolation to compute only the exact samples needed without the massive zero-padding overhead.
+
+DON'T WRITE THIS YOURSELF
+
+Writing a high-quality resampler is a dark art of optimization, filter design, and math. Unless you are a DSP wizard, do not write your own sample rate converter for production use. 
+
+Instead, reach for a proven, battle-tested library:
+- libsamplerate (Secret Rabbit Code): The gold standard, but watch the GPL license.
+- SOXR (The SoX Resampler library): Incredible quality and performance.
+- JUCE: Built-in interpolators (LagrangeInterpolator, WindowedSincInterpolator).
+
+USING JUCE'S WINDOWEDSINCINTERPOLATOR
+
+If you are working in modern C++ audio, you are probably using a framework like JUCE. JUCE provides a WindowedSincInterpolator which offers mastering-grade resampling out of the box.
+
+Here is how you use it to resample a buffer on the fly inside your audio callback:
+
+[CODE BLOCK]
+// ✅ RIGHT: Using a high-quality windowed sinc interpolator in JUCE
+class AudioPlayer {
+public:
+    AudioPlayer() {
+        // Reset the interpolator state when starting playback
+        resampler.reset();
+    }
+
+    void processAudio(juce::AudioBuffer<float>& outputBuffer, 
+                      const juce::AudioBuffer<float>& sourceFileBuffer, 
+                      double sourceSampleRate, 
+                      double targetSampleRate) 
+    {
+        // Calculate the ratio: source / target
+        // E.g., 44100.0 / 48000.0 = 0.91875
+        double speedRatio = sourceSampleRate / targetSampleRate;
+        
+        int numOutputSamples = outputBuffer.getNumSamples();
+        
+        // Ensure we have enough source samples left to process
+        // In a real app, you'd manage read pointers and ring buffers here
+        
+        for (int channel = 0; channel < outputBuffer.getNumChannels(); ++channel) {
+            auto* outData = outputBuffer.getWritePointer(channel);
+            auto* inData = sourceFileBuffer.getReadPointer(channel, currentReadPosition);
+            
+            // Process the resampling
+            resampler.process(speedRatio, inData, outData, numOutputSamples);
+        }
+        
+        // Advance the read position based on how many source samples were consumed
+        currentReadPosition += static_cast<int>(numOutputSamples * speedRatio);
+    }
+
+private:
+    juce::WindowedSincInterpolator resampler;
+    int currentReadPosition = 0;
+};
+[CODE BLOCK]
+
+SUMMARY
+
+- Never use linear interpolation or sample-dropping for playing back audio files at different sample rates; the aliasing will ruin your sound.
+- Sample rate conversion requires anti-aliasing (filtering at the lower Nyquist limit) via Windowed Sinc or Polyphase interpolation.
+- Don't reinvent the wheel. Use SOXR, libsamplerate, or framework-provided tools like JUCE's WindowedSincInterpolator to handle the heavy math.

@@ -1,0 +1,89 @@
+====
+FORMATTING NOTE: Apply H2 to the plain text headings. Use Quora's code button to insert the blocks marked with [CODE BLOCK].
+====
+
+If you are building an audio timeline and blindly stitching clips back-to-back, you've probably already heard the problem: the dreaded click. Unless both waveforms perfectly cross zero at the exact sample of the splice, the instantaneous jump in amplitude will cause a broadband pop.
+
+The solution is crossfading—overlapping the clips slightly and fading one out while fading the other in. But if you implement the math wrong, you'll trade the click for a noticeable volume dip.
+
+The WRONG Way: Linear Crossfades
+
+The most intuitive way to fade two signals is linearly. If t goes from 0.0 to 1.0 over the duration of the crossfade:
+- gainA = 1.0 - t
+- gainB = t
+
+[CODE BLOCK]
+// The WRONG way
+for (int i = 0; i < numSamples; ++i) {
+    float t = (float)i / numSamples;
+    output[i] = (clipA[i] * (1.0f - t)) + (clipB[i] * t);
+}
+[CODE BLOCK]
+
+This prevents the click, but creates a new problem: at the exact middle of the fade (t = 0.5), both clips are at half amplitude (-6dB). When you sum two uncorrelated signals at -6dB, the resulting power is only -3dB. To the listener, the volume audibly dips in the middle of the transition.
+
+The RIGHT Way: Equal-Power (Constant Power) Crossfades
+
+To keep the perceived loudness constant, you need the power of the signals to sum to 1, not the amplitude. The industry standard for DAWs is the equal-power crossfade using sine and cosine functions.
+
+- gainA = cos(t * 1.570796f) // 1.570796 is pi/2
+- gainB = sin(t * 1.570796f)
+
+At t = 0.5, both sine and cosine yield ~0.707 (-3dB). Summing two uncorrelated signals at -3dB results in 0dB of total power. No volume dip.
+
+Engine Implementation
+
+In a real timeline architecture, you don't want to calculate trigonometric functions per-sample unless you have to. Your engine should separate rendering into states: reading a single clip, and processing an overlap.
+
+Here is how you handle the overlap region in a JUCE processBlock.
+
+[CODE BLOCK]
+void AudioEngine::processCrossfade(juce::AudioBuffer<float>& buffer, 
+                                   TimelineClip& clipA, 
+                                   TimelineClip& clipB, 
+                                   int startSample, 
+                                   int numSamples)
+{
+    auto* channelData = buffer.getWritePointer(0); // Assuming mono for simplicity
+    
+    // Read the raw audio from both clips into temporary buffers
+    juce::AudioBuffer<float> tempA(1, numSamples);
+    juce::AudioBuffer<float> tempB(1, numSamples);
+    clipA.readAudio(tempA, startSample, numSamples);
+    clipB.readAudio(tempB, startSample, numSamples);
+    
+    const float* srcA = tempA.getReadPointer(0);
+    const float* srcB = tempB.getReadPointer(0);
+    
+    // Pre-calculate the phase increment
+    const float phaseInc = juce::MathConstants<float>::halfPi / (float)numSamples;
+    float phase = 0.0f;
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        // Equal-power gains
+        float gainA = std::cos(phase);
+        float gainB = std::sin(phase);
+        
+        channelData[i] = (srcA[i] * gainA) + (srcB[i] * gainB);
+        phase += phaseInc;
+    }
+}
+[CODE BLOCK]
+
+Optimizing Timeline State
+
+To keep your DSP thread efficient, your timeline player needs to look ahead and schedule these operations.
+
+1. Find regions: Build an interval tree or a sorted list of clip start/end times.
+2. Determine state: For the current audio block, are you entirely inside Clip A, entirely inside a crossfade, or crossing a boundary?
+3. Split blocks: If a 512-sample block starts with 200 samples of Clip A, and then a crossfade begins, you must split the processing. Call processClip(..., 200) and then processCrossfade(..., 312). 
+
+Never check `if (isCrossfading)` inside your inner per-sample loop. Resolve the state at the block level and dispatch to the correct optimized processing function.
+
+Summary
+
+- Never stitch blindly: Unaligned waveforms will pop. Always use a short overlap (even 5-10ms) if clips are placed contiguously.
+- Avoid linear fades: They cause a -3dB power dip in the center of the transition.
+- Use equal-power fades: cos(t * pi/2) and sin(t * pi/2) preserve constant perceived loudness.
+- Optimize at the block level: Slice your audio buffers at crossfade boundaries so your inner loops run without branching.
