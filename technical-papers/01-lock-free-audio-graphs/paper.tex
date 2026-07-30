@@ -1,0 +1,43 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+
+
+
+\title{Lock-Free Synchronization Paradigms in Real-Time Audio Graphs}
+\author{Bill Westlake}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper explores the mathematical and systemic constraints of hard real-time execution environments, specifically within digital audio workstation (DAW) audio processing graphs. We demonstrate why standard operating system synchronization primitives, such as mutexes and semaphores, inevitably violate real-time safety via priority inversion. We then formalize lock-free architectures---specifically Single-Producer/Single-Consumer (SPSC) ring buffers and atomic state swapping---as necessary paradigms for maintaining deterministic execution bounds in high-performance C++ DSP applications.
+\end{abstract}
+
+\section{Introduction}
+In modern real-time audio systems, the processing graph must supply a continuous stream of audio samples to the Digital-to-Analog Converter (DAC) under strict temporal constraints. Failure to meet these deadlines results in buffer underruns, physically manifesting as audible artifacts (clicks and pops). 
+
+The fundamental challenge arises when the audio thread must communicate with the user interface (UI) thread or perform dynamic graph topology alterations. This paper bridges theoretical systems engineering with practical C++ implementations, illustrating how to circumvent priority inversion and maintain lock-free determinism.
+
+\section{The Mathematical Constraints of the Audio Callback}
+% TODO: Define latency, buffer size, and sample rate mathematically.
+
+\section{Priority Inversion and the Failure of Mutexes}
+% TODO: Explain OS scheduling and why blocking the audio thread is fatal.
+
+\section{Lock-Free Ring Buffers}
+% TODO: Detail the implementation of memory-barrier protected FIFOs.
+
+\section{Atomic State Swapping and Double-Buffering}
+% TODO: How to hot-swap plugin parameters and states without locks or allocation.
+
+\section{Conclusion}
+% TODO: Summarize findings and best practices for C++ DSP architecture.
+
+\end{document}
