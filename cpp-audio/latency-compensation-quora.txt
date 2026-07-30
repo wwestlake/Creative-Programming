@@ -1,5 +1,3 @@
-==== FORMATTING NOTE: Apply H2 to the ALL CAPS section titles. Code blocks are marked with [CODE BLOCK] for the Quora code button. ====
-
 You’ve built a modular audio graph, but the moment you add a lookahead compressor or a linear-phase EQ to your drum bus, all the punch disappears. The transients are completely smeared because your drum track is now delayed by 512 samples, while the bass track isn't—they are completely out of phase.
 
 To fix this, you need Automatic Delay Compensation (ADC), sometimes called Plugin Delay Compensation (PDC).
@@ -24,7 +22,6 @@ In JUCE, the AudioProcessorGraph can handle this automatically, provided two thi
 
 First, your individual processors (the nodes) must accurately report their latency to the host whenever their internal state changes (e.g., when a user increases the lookahead time).
 
-[CODE BLOCK]
 void LookaheadCompressor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     // ... setup DSP ...
@@ -35,13 +32,11 @@ void LookaheadCompressor::prepareToPlay(double sampleRate, int samplesPerBlock)
     // Crucial: Tell the host/graph about the delay we are introducing
     setLatencySamples(lookaheadSamples); 
 }
-[END CODE BLOCK]
 
 Second, if you are building the graph routing yourself (or implementing a custom graph execution engine), you need to insert compensation nodes. 
 
 Here is a production-ready C++ ring buffer you can use as a compensation delay line when aligning those faster paths.
 
-[CODE BLOCK]
 class CompensationDelay
 {
 public:
@@ -94,7 +89,6 @@ private:
     int writePos = 0;
     int delaySamples = 0;
 };
-[END CODE BLOCK]
 
 When walking your graph, if you calculate that a parallel vocal track needs 240 samples of delay to align with the drum bus, you simply instantiate a CompensationDelay, call setDelay(240), and insert it into the execution order for the vocal track.
 

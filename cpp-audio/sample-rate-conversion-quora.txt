@@ -1,7 +1,3 @@
-====
-FORMATTING NOTE: Please apply H2 formatting to the ALL CAPS section titles.
-====
-
 You load a 44.1kHz WAV file, but your audio hardware is running at 48kHz. If you just feed the samples to the output one-by-one, your audio will play too fast, and everything will be pitch-shifted up like a chipmunk. 
 
 Here is how you actually handle sample rate conversion in C++ without ruining your audio quality.
@@ -10,7 +6,6 @@ THE WRONG WAY: LINEAR INTERPOLATION
 
 The intuitive approach is to just calculate where the new samples should be and draw straight lines between the existing samples (linear interpolation), or even worse, just drop or duplicate samples to make the math fit.
 
-[CODE BLOCK]
 // ❌ WRONG: Linear interpolation causes massive aliasing
 float getInterpolatedSample(const float* buffer, double position) {
     int index = static_cast<int>(position);
@@ -20,7 +15,6 @@ float getInterpolatedSample(const float* buffer, double position) {
     
     return sample1 + fraction * (sample2 - sample1);
 }
-[CODE BLOCK]
 
 While linear interpolation is incredibly cheap on the CPU, it generates horrible high-frequency artifacts (aliasing) because it introduces sharp angles into the waveform. Unless you are intentionally building a lo-fi sampler effect, this is unacceptable for production audio.
 
@@ -50,7 +44,6 @@ If you are working in modern C++ audio, you are probably using a framework like 
 
 Here is how you use it to resample a buffer on the fly inside your audio callback:
 
-[CODE BLOCK]
 // ✅ RIGHT: Using a high-quality windowed sinc interpolator in JUCE
 class AudioPlayer {
 public:
@@ -89,7 +82,6 @@ private:
     juce::WindowedSincInterpolator resampler;
     int currentReadPosition = 0;
 };
-[CODE BLOCK]
 
 SUMMARY
 

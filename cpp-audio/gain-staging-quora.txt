@@ -1,7 +1,3 @@
-====
-FORMATTING NOTE: Please apply H2 formatting to all ALL-CAPS section titles.
-====
-
 Why does your C++ mixer distort when you export the final track, even though none of your individual channels seem to be clipping? Or conversely, why do some plugins sound completely destroyed the moment you drop them onto a track? You're fighting a battle with gain staging, and if you treat your DSP pipeline like an analog console without understanding the math, you'll constantly ruin your headroom.
 
 THE 32-BIT FLOATING-POINT ILLUSION
@@ -16,7 +12,6 @@ THE WRONG WAY: RELYING ONLY ON THE FADER
 
 Many beginners ignore the input level and try to fix a quiet or loud signal using the channel fader.
 
-[CODE BLOCK]
 void processBlock (juce::AudioBuffer<float>& buffer)
 {
     // WRONG: Ignoring input level and just pushing the fader.
@@ -28,7 +23,6 @@ void processBlock (juce::AudioBuffer<float>& buffer)
     // Applying fader gain
     buffer.applyGain (faderLevel); 
 }
-[CODE BLOCK]
 
 If a recorded vocal comes in extremely hot, applying an EQ or compressor before you've trimmed the level means those plugins are working with a mathematically enormous signal. Turning down the fader at the end of the chain doesn't un-distort the compressor.
 
@@ -42,7 +36,6 @@ A proper channel strip handles gain in stages:
 
 Here is how you implement a robust channel strip processor in JUCE:
 
-[CODE BLOCK]
 class ChannelStrip
 {
 public:
@@ -87,7 +80,6 @@ private:
         meter.peak = buffer.getMagnitude (0, buffer.getNumSamples());
     }
 };
-[CODE BLOCK]
 
 METERING: PRE VS. POST FADER
 

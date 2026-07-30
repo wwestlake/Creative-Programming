@@ -1,9 +1,3 @@
-====
-Formatting Note: 
-Apply H2 styling to all section titles.
-Use the Quora code block button to format all sections marked with [CODE BLOCK].
-====
-
 If you're building a delay, LFO, or sequencer, locking it to the host DAW's BPM is non-negotiable. But if you just grab the sample rate in `prepareToPlay` and hardcode a BPM, your effect will drift the moment the user automates a tempo change.
 
 To do this right in a plugin (like VST3 or AU), you have to continuously ask the host for the current tempo on the audio thread, safely handle edge cases where the host refuses to answer, and convert musical time (like a 1/4 note) into an exact number of audio samples.
@@ -12,7 +6,6 @@ The Wrong Way: Static Calculation
 
 A common mistake is treating tempo as a static variable. You might calculate the delay time once when the plugin loads or when a parameter changes.
 
-[CODE BLOCK]
 // WRONG: This will drift if the DAW tempo automates
 void MyAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
@@ -32,7 +25,6 @@ In JUCE, the DAW's timeline information lives in the `AudioPlayHead`. You must q
 
 Here is production-grade code that fetches the current tempo, falls back to a default if the DAW isn't playing ball, and calculates the exact sample length for a musical division.
 
-[CODE BLOCK]
 void MyAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     // 1. Set a fallback BPM for standalone mode or hostile hosts

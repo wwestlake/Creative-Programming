@@ -1,9 +1,3 @@
-================================================================================
-Quora Formatting Note: 
-- Click the {...} code button to format blocks marked with [CODE BLOCK]
-- Make the ALL CAPS section titles into H2 headers (click the text formatting icon)
-================================================================================
-
 You're profiling an audio plugin, everything runs smoothly at 5% CPU, and then the input goes silent—suddenly your DSP thread spikes to 100% and audio dropouts completely ruin the session. Welcome to the nightmare of denormal numbers.
 
 WHAT ARE DENORMALS AND WHY DO THEY KILL PERFORMANCE?
@@ -20,7 +14,6 @@ THE WRONG WAY: BRANCHING IN THE INNER LOOP
 
 When developers first encounter this, their instinct is to clamp values manually inside the processing loop.
 
-[CODE BLOCK]
 for (int channel = 0; channel < numChannels; ++channel) {
     auto* channelData = buffer.getWritePointer(channel);
     for (int sample = 0; sample < numSamples; ++sample) {
@@ -34,7 +27,6 @@ for (int channel = 0; channel < numChannels; ++channel) {
         channelData[sample] = out;
     }
 }
-[CODE BLOCK END]
 
 This is terrible. You are adding a branch (the `if` statement) to your innermost DSP loop, which ruins branch prediction and prevents the compiler from vectorizing your code. You're trading a massive CPU spike during silence for a constant, heavy CPU tax at all times.
 
@@ -44,7 +36,6 @@ Modern CPUs provide a hardware-level solution: Flush-to-Zero (FTZ) and Denormals
 
 If you are using the JUCE framework, you don't even need to touch assembly or intrinsic headers. JUCE provides an RAII wrapper called `juce::ScopedNoDenormals`.
 
-[CODE BLOCK]
 void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) override
 {
     // RIGHT: Instantiated at the top of the block.
@@ -59,7 +50,6 @@ void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessa
         }
     }
 }
-[CODE BLOCK END]
 
 This is clean, thread-safe, and restores the previous CPU state when the object goes out of scope, ensuring you don't break expected floating-point behavior in other parts of the host application.
 

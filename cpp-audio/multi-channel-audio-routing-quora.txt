@@ -1,7 +1,3 @@
-====
-Formatting Note: Replace [CODE BLOCK] sections with Quora's native code formatting. Use H2 for section titles.
-====
-
 Audio development is smooth sailing until your plugin crashes a user's DAW because they dropped it on a mono track, or a client suddenly asks for 7.1.4 Dolby Atmos support. If your entire DSP pipeline is hardcoded to "Left" and "Right," you're setting yourself up for failure. 
 
 Here is how to handle multi-channel routing in C++ without breaking your application.
@@ -18,7 +14,6 @@ Most beginners fall into the trap of assuming every audio bus has exactly two ch
 
 The WRONG way:
 
-[CODE BLOCK]
 void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     // FATAL: Will access violate and crash if the DAW provides a mono buffer
@@ -37,7 +32,6 @@ The RIGHT way:
 
 Stop thinking in Left and Right. Dynamically iterate over whatever channel count the host provides.
 
-[CODE BLOCK]
 void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     const int numChannels = buffer.getNumChannels();
@@ -59,7 +53,6 @@ Matrix Routing: N Inputs to M Outputs
 
 When you need to route N inputs to M outputs, you use a routing matrix. A matrix dictates how much of input channel `x` goes to output channel `y`. In C++, this is often represented as a 2D array of gain values.
 
-[CODE BLOCK]
 // Routing an N-channel buffer to an M-channel buffer
 void routeAudio(const juce::AudioBuffer<float>& input,
                 juce::AudioBuffer<float>& output,
@@ -91,7 +84,6 @@ If you don't have a specific routing matrix but need to collapse a stereo signal
 
 Instead, preserve perceived power by dividing by the square root of 2 (`~0.707f`).
 
-[CODE BLOCK]
 void stereoToMono(juce::AudioBuffer<float>& buffer)
 {
     if (buffer.getNumChannels() < 2) return;
@@ -116,7 +108,6 @@ Bussing: Accumulating Submixes
 
 When building a mixer where multiple tracks route into a single submix (a bus), you are accumulating samples. The golden rule of bussing is: the bus buffer must be zeroed out before the first track adds to it, and every subsequent track must *add* (not overwrite).
 
-[CODE BLOCK]
 void mixTracksToBus(const std::vector<juce::AudioBuffer<float>*>& tracks,
                     juce::AudioBuffer<float>& masterBus)
 {

@@ -1,17 +1,9 @@
-======================================================================
-FORMATTING NOTE: 
-- Apply H2 to all ALL CAPS section titles.
-- Click the { } button in Quora to create code blocks where indicated by [CODE BLOCK].
-- The summary has been formatted as a bulleted list.
-======================================================================
-
 Loading a VST3 DLL (or dylib/so) is a massive OS-level operation that reads from disk, allocates memory, and fires up completely untrusted third-party code. If you try to instantiate or destroy a plugin synchronously on your audio thread, or hold a lock on the UI thread while doing it, your host will hard-lock, glitch, or crash.
 
 THE WRONG WAY
 
 The fastest way to destroy your host's stability is attempting to load or swap a plugin directly inside your audio callback, or blocking the audio thread while waiting for a UI thread to do the work.
 
-[CODE BLOCK]
 void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) override 
 {
     // WRONG: Never do disk I/O, allocation, or heavy init in the audio thread!
@@ -29,7 +21,6 @@ void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessag
     if (activePlugin != nullptr)
         activePlugin->processBlock(buffer, midiMessages);
 }
-[END CODE BLOCK]
 
 Similarly, if you hold a std::mutex across your UI thread to load the plugin, and wait on that same mutex in processBlock, the OS will stall the audio thread whenever a user clicks "Load Plugin." 
 
@@ -39,7 +30,6 @@ To do this safely, you must load the plugin asynchronously on a background threa
 
 JUCE provides AudioPluginFormatManager::createPluginInstanceAsync specifically for this scenario.
 
-[CODE BLOCK]
 // 1. The Atomic Pointer (Shared between UI/Background and Audio Thread)
 std::atomic<juce::AudioPluginInstance*> activePlugin { nullptr };
 
@@ -78,7 +68,6 @@ void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessag
     else
         buffer.clear();
 }
-[END CODE BLOCK]
 
 HOW TO SAFELY UNLOAD
 

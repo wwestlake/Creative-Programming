@@ -1,14 +1,9 @@
-====
-Formatting Note: Apply H2 to the section titles below. Use Quora's code block feature for the [CODE BLOCK] sections. 
-====
-
 The problem: Disk I/O in the audio callback
 You're trying to record incoming audio to a WAV file, but your UI freezes and you're getting terrible audio glitches (dropouts). The golden rule of audio programming is that you never block the audio thread. Disk I/O is notoriously unpredictable and incredibly slow compared to the strict deadlines of a real-time audio callback.
 
 The WRONG Way: Writing to disk in processBlock
 It's tempting to just write incoming samples straight to disk the moment they arrive.
 
-[CODE BLOCK]
 void AudioRecorder::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     // WRONG: Never do this in the audio thread!
@@ -18,7 +13,6 @@ void AudioRecorder::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
         writer->writeFromAudioSampleBuffer(buffer, 0, buffer.getNumSamples());
     }
 }
-[CODE BLOCK]
 
 This works fine for a few milliseconds until the operating system decides it needs to spin up a drive, page some memory, or deal with a background process. Your audio callback misses its deadline, the sound card runs out of samples, and you get a loud click.
 
@@ -39,7 +33,6 @@ While you can build your own lock-free FIFO and background thread, JUCE provides
 
 Here's how you set it up properly:
 
-[CODE BLOCK]
 class AudioRecorder
 {
 public:
@@ -90,7 +83,6 @@ private:
     juce::TimeSliceThread backgroundThread;
     std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> threadedWriter;
 };
-[CODE BLOCK]
 
 Summary
 * Never perform disk I/O inside the real-time audio callback.

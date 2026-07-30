@@ -1,10 +1,3 @@
-================================================================================
-FORMATTING NOTE: 
-Apply H2 formatting to section titles. 
-Click the Quora "{}" code button to insert the blocks marked by [CODE BLOCK].
-Use standard bulleted lists for the summary.
-================================================================================
-
 You've set your buffer size to 256 samples at 44.1kHz, so you expect your audio callback to fire exactly every 5.8 milliseconds. Instead, you're measuring intervals of 3ms, then 8ms, then 6ms, and your MIDI clocks or LFOs are drifting out of sync.
 
 What Callback Jitter Is
@@ -26,7 +19,6 @@ The Wrong Way: Wall-Clock Time
 
 Here is a broken approach to building an oscillator inside an audio callback. It relies on the system clock to calculate elapsed time. As the callback jitter changes, the phase increment fluctuates, and the frequency warbles.
 
-[CODE BLOCK]
 // THE WRONG WAY: Relying on wall-clock time in the audio callback
 class BrokenOscillator 
 {
@@ -56,7 +48,6 @@ private:
     float currentPhase = 0.0f;
     float frequency = 440.0f;
 };
-[END CODE BLOCK]
 
 The Right Way: Count Samples
 
@@ -64,7 +55,6 @@ The golden rule of audio programming: Never rely on physical wall-clock time ins
 
 One sample represents exactly 1.0 / sampleRate seconds, regardless of when the OS actually scheduled the callback or how long it took to execute. The hardware DAC guarantees this timing. If you process 256 samples, exactly 5.8ms of audio time has passed, period.
 
-[CODE BLOCK]
 // THE RIGHT WAY: Sample-accurate phase calculation
 class SolidOscillator 
 {
@@ -98,7 +88,6 @@ private:
     float phaseIncrement = 0.0f;
     float frequency = 440.0f;
 };
-[END CODE BLOCK]
 
 A Note on Thread Priorities
 

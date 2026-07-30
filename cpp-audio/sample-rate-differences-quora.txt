@@ -1,5 +1,3 @@
-==== FORMATTING NOTE: Quora does not support markdown. Please use the formatting toolbar to apply H2 headers to the capitalized section titles. Replace [CODE BLOCK] sections with Quora's native code formatting block. ====
-
 Why does my audio sound different at different sample rates in C++?
 
 You load up your shiny new C++ audio plugin in your DAW at 44.1kHz, and it sounds massive. You send it to a collaborator running their session at 96kHz, and suddenly the LFOs are twice as fast, the EQ sounds shrill, and the reverb tail sounds like a tin can. 
@@ -14,20 +12,17 @@ If you calculate that phase increment assuming a sample rate of 44.1kHz, but the
 
 Here is the WRONG way to set up an oscillator in JUCE:
 
-[CODE BLOCK]
 void MyPlugin::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // WRONG: Hardcoding the sample rate or assuming it's 44.1k
     double assumedSampleRate = 44100.0; 
     lfo.setFrequency (1.0f, assumedSampleRate); 
 }
-[END CODE BLOCK]
 
 If you do this, your 1 Hz LFO will run at 2.17 Hz in a 96kHz session. 
 
 The RIGHT way is to strictly use the sampleRate passed by the host during initialization:
 
-[CODE BLOCK]
 void MyPlugin::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // RIGHT: Always pass the host's sample rate down to your DSP objects
@@ -36,7 +31,6 @@ void MyPlugin::prepareToPlay (double sampleRate, int samplesPerBlock)
     // Update any custom delay line lengths in samples
     delayBuffer.setSize (1, static_cast<int> (sampleRate * delayTimeInSeconds));
 }
-[END CODE BLOCK]
 
 Every time prepareToPlay is called, you must re-calculate any variable that depends on the sample rate. Delay line lengths in samples, oscillator phase increments, and envelope release times all need to be recomputed.
 

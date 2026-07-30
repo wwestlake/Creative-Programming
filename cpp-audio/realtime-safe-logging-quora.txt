@@ -1,7 +1,3 @@
-====
-FORMATTING NOTE: Please apply H2 styling to all section titles and use the code snippet tool for [CODE BLOCK] sections.
-====
-
 If your audio plugins are sputtering, glitching, or dropping out randomly during development, there's a high chance your logging is the culprit. You threw a quick print statement into your audio callback to debug a buffer issue, and now the whole engine is choking.
 
 Why standard logging destroys audio performance
@@ -12,7 +8,6 @@ Functions like std::cout, printf, and std::ofstream are fundamentally unsafe for
 2. They do I/O: Writing to a console or disk is incredibly slow and unpredictable compared to the tight deadlines of an audio callback.
 
 The WRONG way
-[CODE BLOCK]
 void AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     // FATAL: std::cout blocks, locks, and allocates memory!
@@ -37,7 +32,6 @@ Here is a simplified JUCE implementation using juce::AbstractFifo to pass struct
 
 First, define the structure of your log message:
 
-[CODE BLOCK]
 struct LogEvent
 {
     enum class Type { BufferSize, GainChange, Error };
@@ -50,7 +44,6 @@ struct LogEvent
 
 Next, create the logger class that inherits from juce::Thread:
 
-[CODE BLOCK]
 class RealtimeLogger : public juce::Thread
 {
 public:

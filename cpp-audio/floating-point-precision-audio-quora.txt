@@ -1,10 +1,3 @@
-==================================================
-FORMATTING NOTE:
-- Apply H2 formatting to section titles.
-- Click Quora's { } code button for blocks marked [CODE BLOCK].
-- No tables are used; bullet points are provided for compatibility.
-==================================================
-
 You’ve got a massive summing mixer or a high-order IIR filter, and your signal is slowly degrading into noise or blowing up entirely. The culprit is almost always floating-point truncation when dealing with 32-bit (float) numbers.
 
 A standard 32-bit float gives you roughly 7 decimal digits of precision. This sounds like plenty until you start accumulating tiny values into a large value. When you add 0.0000001 to 1000.0 using a 32-bit float, the tiny value is truncated into nothingness. In audio, this translates to quantization noise, DC offsets, and unstable feedback loops.
@@ -17,7 +10,6 @@ IIR (Infinite Impulse Response) filters rely on feedback. If you implement a hig
 
 Here is the WRONG way to implement an IIR filter's state:
 
-[CODE BLOCK]
 // WRONG: Using 32-bit floats for internal state and coefficients
 class BadFilter 
 {
@@ -53,7 +45,6 @@ Audio I/O (from the host or audio interface) is almost always given to you as 32
 
 Internal state variables—like filter delays, oscillator phase accumulators, and master summing busses—should absolutely be double.
 
-[CODE BLOCK]
 // RIGHT: 64-bit internal state, 32-bit I/O
 class GoodFilter 
 {
@@ -96,7 +87,6 @@ This happens all the time in filters or reverbs when the input goes silent and t
 
 To fix this, you need to disable denormals at the CPU level before processing your audio block. In JUCE, you do this using juce::ScopedNoDenormals:
 
-[CODE BLOCK]
 void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) override
 {
     // Disables denormals for the scope of this function

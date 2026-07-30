@@ -1,9 +1,3 @@
-======================================================================
-FORMATTING NOTE: This text is formatted for Quora. 
-Please apply H2 formatting to the ALL CAPS section headers.
-Replace [CODE BLOCK] markers with Quora's native code formatting.
-======================================================================
-
 You’ve built a seemingly simple audio app or plugin, but the moment you launch it, your CPU fan spins up like a jet engine and Task Manager or Activity Monitor shows it chewing through 100% of a CPU core. 
 
 You aren't even doing heavy DSP yet. So what is burning all those cycles?
@@ -14,7 +8,6 @@ In audio development, extreme CPU usage is rarely caused by your actual math. It
 
 The most common way to accidentally burn 100% of a CPU core is to implement a naïve wait loop on a background thread. If you need a background thread to process data only when the audio thread delivers it, you might be tempted to do this:
 
-[CODE BLOCK]
 // THE WRONG WAY
 void run() override
 {
@@ -28,13 +21,11 @@ void run() override
         // This spins millions of times a second, burning 100% of a core!
     }
 }
-[CODE BLOCK]
 
 This is called "busy-waiting." The thread is asking "is it ready?" millions of times per second, which keeps the CPU core fully powered up and doing pointless work.
 
 The Fix: You need to put the thread to sleep until there is actually work to do. In JUCE, juce::WaitableEvent is perfect for this.
 
-[CODE BLOCK]
 // THE RIGHT WAY
 juce::WaitableEvent dataReadyEvent;
 
@@ -53,7 +44,6 @@ void run() override
         }
     }
 }
-[CODE BLOCK]
 
 2. ABUSIVE UI POLLING AND REPAINTING
 
@@ -63,7 +53,6 @@ Calling repaint() too often will crush your UI thread. If you set your timer int
 
 The Fix: Human eyes can't process updates faster than 60Hz. Cap your UI refresh rates.
 
-[CODE BLOCK]
 // THE WRONG WAY
 startTimer(1); // 1ms = 1000 FPS. Do not do this!
 
@@ -71,7 +60,6 @@ startTimer(1); // 1ms = 1000 FPS. Do not do this!
 startTimerHz(30); // 30 FPS is smooth enough for most meters
 // or
 startTimerHz(60); // 60 FPS for very smooth scopes/playheads
-[CODE BLOCK]
 
 3. THE DENORMAL TRAP
 
@@ -81,9 +69,7 @@ When floating-point values get extremely close to zero, the CPU switches into a 
 
 In JUCE, add this to the top of your processBlock:
 
-[CODE BLOCK]
 juce::ScopedNoDenormals noDenormals;
-[CODE BLOCK]
 
 4. MICROSCOPIC BUFFER SIZES
 

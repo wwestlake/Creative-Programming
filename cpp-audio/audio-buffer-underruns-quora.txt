@@ -1,9 +1,3 @@
-================================================================================
-FORMATTING NOTE: 
-- Headings are plain text. Apply H2 formatting to them manually in the Quora editor.
-- Click the Quora `{}` code button wherever you see [CODE BLOCK].
-================================================================================
-
 If you are hearing sudden pops, clicks, or terrifying screeching noises when running your audio application, you are experiencing buffer underruns. Your audio callback is simply taking longer to process the data than the time it takes the hardware to play it back.
 
 The Root Cause
@@ -25,7 +19,6 @@ Leaving garbage data, uninitialized memory, or half-processed audio in the buffe
 The RIGHT way:
 You must fill the buffer with *something*. If your system detects it doesn't have the data it needs to continue, the safest fallback is absolute silence.
 
-[CODE BLOCK]
 void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     // If our background thread hasn't prepared enough data, bail out safely.
@@ -42,7 +35,6 @@ Detecting the Danger Zone
 
 You can't reliably detect an OS-level underrun directly from inside the callback itself—when the deadline hits, the OS simply yanks the buffer away. However, you can profile your CPU usage relative to the buffer duration to find out how close you are to failing.
 
-[CODE BLOCK]
 // Member variable: double currentCpuLoad = 0.0;
 
 void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)

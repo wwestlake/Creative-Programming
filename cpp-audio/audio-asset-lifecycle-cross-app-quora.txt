@@ -1,7 +1,3 @@
-====
-FORMATTING NOTE: Please apply H2 formatting to section titles and convert the [CODE BLOCK] markers to Quora's native code formatting.
-====
-
 Loading a 100MB multi-sampled piano instrument into memory is computationally expensive. If you are running three instances of your plugin or different modules in a host application, loading that identical asset three separate times consumes 300MB of RAM and triple the disk I/O.
 
 When you're building professional audio applications, redundant asset loading is the fastest way to bloat your memory footprint and ruin the user experience.
@@ -10,7 +6,6 @@ The Wrong Way: Per-Instance Ownership
 
 The naive approach is letting each synthesizer or sampler voice own its own buffers. 
 
-[CODE BLOCK]
 class SamplerVoice 
 {
 public:
@@ -26,7 +21,6 @@ public:
 private:
     juce::AudioBuffer<float> buffer;
 };
-[CODE BLOCK]
 
 If the user loads a 16-voice drum kit, you just loaded the same snare sample 16 times into separate memory blocks. 
 
@@ -36,7 +30,6 @@ The industry-standard solution is a centralized `ResourceManager` (usually injec
 
 Here is a production-ready JUCE implementation:
 
-[CODE BLOCK]
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <unordered_map>
@@ -96,7 +89,6 @@ private:
     // Maps file paths to weak pointers of buffers
     std::unordered_map<juce::String, std::weak_ptr<juce::AudioBuffer<float>>> audioCache;
 };
-[CODE BLOCK]
 
 How Lifecycle Management Works Here
 

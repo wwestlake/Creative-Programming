@@ -1,7 +1,3 @@
-====
-FORMATTING NOTE: Use H2 for capitalized section titles. Replace [CODE BLOCK] with Quora's code formatting.
-====
-
 You wire up your UI to read your audio buffer, but the resulting meter either looks like a blurry jittering mess, or misses snare hits entirely. Building a professional audio meter isn't just about reading sample values; it's about translating high-speed DSP data into human-readable visual ballistics.
 
 Why Audio Metering is a Timing Nightmare
@@ -20,11 +16,9 @@ A good meter often shows both: a solid bar for RMS, and a small line floating ab
 
 The Wrong Way: Just Sending Samples to the UI
 
-[CODE BLOCK]
 // BAD: Polling a random sample in the UI thread
 float currentLevel = audioProcessor.buffer.getSample(0, 0);
 meter.setLevel(currentLevel); 
-[CODE BLOCK]
 
 This misses transients and causes visual aliasing. Your UI will jitter wildly.
 
@@ -32,7 +26,6 @@ The Right Way: Peak Detection with an Envelope Follower
 
 To detect peaks reliably, you scan the entire audio buffer in the process block, find the maximum absolute value, and then apply an envelope follower (attack/decay) so the UI meter has time to rise and fall smoothly.
 
-[CODE BLOCK]
 // In your audio processing block
 float currentMax = 0.0f;
 auto* channelData = buffer.getReadPointer(0);
@@ -53,13 +46,11 @@ else
 {
     peakEnvelope *= decayRate; // Smooth release
 }
-[CODE BLOCK]
 
 The Right Way: RMS for Perceived Loudness
 
 For RMS, you square every sample, sum them up, divide by the number of samples, and take the square root. 
 
-[CODE BLOCK]
 // In your audio processing block
 float sumOfSquares = 0.0f;
 auto* channelData = buffer.getReadPointer(0);
@@ -74,7 +65,6 @@ float rmsValue = std::sqrt(sumOfSquares / buffer.getNumSamples());
 
 // Smooth it with an envelope follower just like the peak!
 rmsEnvelope = (rmsValue > rmsEnvelope) ? rmsValue : rmsEnvelope * decayRate;
-[CODE BLOCK]
 
 Bridging the Audio-GUI Divide Safely
 
@@ -82,7 +72,6 @@ Audio threads cannot wait for locks. To communicate these smoothed levels to the
 
 In your processor:
 
-[CODE BLOCK]
 // Header
 std::atomic<float> meterPeakLevel { 0.0f };
 std::atomic<float> meterRmsLevel { 0.0f };
@@ -90,11 +79,9 @@ std::atomic<float> meterRmsLevel { 0.0f };
 // Process Block (after calculating envelopes)
 meterPeakLevel.store(peakEnvelope, std::memory_order_relaxed);
 meterRmsLevel.store(rmsEnvelope, std::memory_order_relaxed);
-[CODE BLOCK]
 
 In your UI (using a JUCE Timer running at ~30-60Hz):
 
-[CODE BLOCK]
 void timerCallback() override
 {
     // Read the atomic values
@@ -109,7 +96,6 @@ void timerCallback() override
     peakMeterComponent.setLevel(peakDb);
     rmsMeterComponent.setLevel(rmsDb);
 }
-[CODE BLOCK]
 
 Using juce::Decibels::gainToDecibels is critical—audio is logarithmic. If you draw linear gain to a screen, 50% amplitude (-6dB) takes up half the meter, completely squashing the useful dynamic range.
 

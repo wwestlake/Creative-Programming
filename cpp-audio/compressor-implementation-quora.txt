@@ -1,7 +1,3 @@
-====
-FORMATTING NOTE: Apply H2 to the all-caps section titles.
-====
-
 Building a compressor seems straightforward until you write the code and realize your naive volume-scaling algorithm sounds like a distorted, chattering mess. To get that tight, professional dynamic control in a DAW, you can't just multiply samples by a fraction when they get too loud—you have to build a system that *listens* to the signal and reacts smoothly over time.
 
 THE ANATOMY OF A COMPRESSOR
@@ -28,12 +24,10 @@ The RIGHT way: Work in decibels.
 
 First, convert your detected level to dB. If the level exceeds your threshold, calculate the required gain reduction:
 
-[CODE BLOCK]
 float gainReductionDB = 0.0f;
 if (levelDB > thresholdDB) {
     gainReductionDB = (levelDB - thresholdDB) * (1.0f - 1.0f / ratio);
 }
-[CODE BLOCK]
 
 Next, you must smooth this gain reduction. If you instantly drop the gain the exact millisecond a transient hits, you are effectively redrawing the waveform, which equals clipping distortion. We use a simple one-pole lowpass filter as our envelope follower:
 
@@ -45,7 +39,6 @@ A CLEAN C++ IMPLEMENTATION
 
 Here is a practical, production-ready feed-forward compressor loop tailored for a JUCE processBlock. 
 
-[CODE BLOCK]
 void Compressor::processBlock(juce::AudioBuffer<float>& buffer)
 {
     const int numSamples = buffer.getNumSamples();
@@ -94,7 +87,6 @@ void Compressor::processBlock(juce::AudioBuffer<float>& buffer)
         }
     }
 }
-[CODE BLOCK]
 
 SUMMARY
 

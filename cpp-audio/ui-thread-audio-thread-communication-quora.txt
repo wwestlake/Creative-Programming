@@ -1,11 +1,3 @@
-============================================================
-QUORA FORMATTING NOTES (delete before posting):
-  - Section titles below: select each, click "H2" in Quora editor
-  - Code sections: click the { } Code button in Quora FIRST,
-    then paste the code into the code block
-  - Everything else: paste as-is
-============================================================
-
 
 How do I safely communicate between the UI thread and audio thread in C++?
 

@@ -1,7 +1,3 @@
-====
-Formatting Note: Use H2 for sections. Replace [CODE BLOCK] markers with Quora's native code formatting.
-====
-
 A simple array of audio tracks works perfectly right up until the moment a user asks for a reverb send or a sidechain compressor. Suddenly, you aren't just processing tracks in a simple loop—you're routing audio between them, and if you process them in the wrong order, you introduce unwanted latency, phase issues, or complete silence. 
 
 Here is how you structure a robust audio processing graph in C++ that can handle tracks, sends, returns, and complex master busses.
@@ -10,7 +6,6 @@ The Problem: Linear Processing Breaks Down
 
 The wrong way to build a mixer is a flat list of tracks feeding a master bus.
 
-[CODE BLOCK]
 // The WRONG way: linear track processing
 void Mixer::processBlock (juce::AudioBuffer<float>& masterBuffer)
 {
@@ -26,7 +21,6 @@ void Mixer::processBlock (juce::AudioBuffer<float>& masterBuffer)
         sumBuffer (masterBuffer, track->getOutputBuffer());
     }
 }
-[CODE BLOCK]
 
 Once a track needs to send audio to an aux bus, that aux bus *must* be processed after the track. The solution is treating your entire audio engine as a Directed Acyclic Graph (DAG). 
 
@@ -40,7 +34,6 @@ Structuring the Graph Node (JUCE Flavor)
 
 Here is a simplified base class for an audio node using JUCE's AudioBuffer. 
 
-[CODE BLOCK]
 // The RIGHT way: DAG Nodes
 class AudioNode
 {
@@ -70,7 +63,6 @@ public:
     // Where does this node send its audio next?
     std::vector<AudioNode*> downstreamNodes;
 };
-[CODE BLOCK]
 
 When you render your graph, you iterate through your topologically sorted list of nodes:
 1. Call processBlock() on the node.
