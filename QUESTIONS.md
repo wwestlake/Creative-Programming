@@ -33,10 +33,10 @@ Each links to its answer document when written.
 | 24 | Why does my audio app use 100% CPU and how do I fix it? | cpu-overload-audio-app | ✅ Written |
 | 25 | How do I implement a compressor in C++ for a DAW? | compressor-implementation | ✅ Written |
 | 26 | How do I handle floating point precision errors in audio processing in C++? | floating-point-precision-audio | ✅ Written |
-| 27 | How do I implement latency compensation in a C++ audio graph? | latency-compensation | 📝 Queued |
-| 28 | How do I implement real-time audio recording in C++? | realtime-audio-recording | 📝 Queued |
-| 29 | How do I implement tempo-synced audio effects in C++? | tempo-synced-effects | 📝 Queued |
-| 30 | How do I manage audio asset lifecycles across multiple apps in C++? | audio-asset-lifecycle-cross-app | 📝 Queued |
+| 27 | How do I implement latency compensation in a C++ audio graph? | latency-compensation | ✅ Written |
+| 28 | How do I implement real-time audio recording in C++? | realtime-audio-recording | ✅ Written |
+| 29 | How do I implement tempo-synced audio effects in C++? | tempo-synced-effects | ✅ Written |
+| 30 | How do I manage audio asset lifecycles across multiple apps in C++? | audio-asset-lifecycle-cross-app | ✅ Written |
 
 ---
 

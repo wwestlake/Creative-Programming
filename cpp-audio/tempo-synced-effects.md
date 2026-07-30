@@ -1,0 +1,79 @@
+If you're building a delay, LFO, or sequencer, locking it to the host DAW's BPM is non-negotiable. But if you just grab the sample rate in `prepareToPlay` and hardcode a BPM, your effect will drift the moment the user automates a tempo change.
+
+To do this right in a plugin (like VST3 or AU), you have to continuously ask the host for the current tempo on the audio thread, safely handle edge cases where the host refuses to answer, and convert musical time (like a 1/4 note) into an exact number of audio samples.
+
+## The Wrong Way: Static Calculation
+
+A common mistake is treating tempo as a static variable. You might calculate the delay time once when the plugin loads or when a parameter changes.
+
+```cpp
+// WRONG: This will drift if the DAW tempo automates
+void MyAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    double bpm = 120.0; // Hardcoded or static parameter
+    double beatsPerSecond = bpm / 60.0;
+    double samplesPerBeat = sampleRate / beatsPerSecond;
+    
+    // 1/4 note delay length
+    delayBufferLengthInSamples = samplesPerBeat * 1.0; 
+}
+```
+
+If the DAW speeds up during a track, your delay echoes will stubbornly remain at 120 BPM, causing a rhythmic trainwreck.
+
+## The Right Way: Querying the AudioPlayHead
+
+In JUCE, the DAW's timeline information lives in the `AudioPlayHead`. You must query this object at the start of every single audio block. 
+
+Here is production-grade code that fetches the current tempo, falls back to a default if the DAW isn't playing ball, and calculates the exact sample length for a musical division.
+
+```cpp
+void MyAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    // 1. Set a fallback BPM for standalone mode or hostile hosts
+    double currentBpm = 120.0; 
+
+    // 2. Safely interrogate the DAW for current playback info
+    if (auto* playHead = getPlayHead())
+    {
+        if (auto positionInfo = playHead->getPosition())
+        {
+            if (positionInfo->getBpm().hasValue())
+                currentBpm = *positionInfo->getBpm();
+        }
+    }
+
+    // 3. The Math: BPM to Samples
+    // samples_per_beat = (sampleRate * 60.0) / bpm
+    double samplesPerBeat = (getSampleRate() * 60.0) / currentBpm;
+
+    // 4. Convert musical durations to samples
+    // A quarter note is exactly 1 beat. An eighth note is 0.5 beats.
+    double quarterNoteSamples = samplesPerBeat * 1.0;
+    double eighthNoteSamples = samplesPerBeat * 0.5;
+    double dottedEighthSamples = samplesPerBeat * 0.75;
+
+    // Now update your delay line or LFO frequency...
+    updateDelayTime (quarterNoteSamples);
+    
+    // ... continue processing audio ...
+}
+```
+
+## Dealing with Mid-Buffer Tempo Changes
+
+You might wonder: what if the tempo changes *during* the current block of audio? 
+
+The `AudioPlayHead` usually gives you the BPM at the exact *start* of the buffer. For 95% of effects, updating your delay time or LFO phase increment once per block (e.g., every 256 samples) is perfectly fine. The steps are small enough that the user won't hear zipper noise, provided your delay line uses internal smoothing or interpolation.
+
+If you are building something hyper-critical—like a sample-accurate sequencer—you technically need to interpolate the tempo between the current block and the next, but this is overkill for standard delays and modulations.
+
+## Summary
+
+| Concept | Rule/Formula |
+|---------|--------------|
+| **Dynamic Querying** | Always get BPM via `AudioPlayHead::getPosition()` inside `processBlock`. |
+| **Missing Hosts** | Always provide a fallback internal BPM (e.g., 120.0) if `playHead` is null. |
+| **The Math** | `samples_per_beat = (sampleRate * 60.0) / bpm` |
+| **Musical Fractions** | 1/4 note = 1.0 beat, 1/8 note = 0.5 beats. Multiply by `samples_per_beat`. |
+| **Block Updates** | Updating delay times once per audio block is fine for most effects, provided your delay line smooths changes. |

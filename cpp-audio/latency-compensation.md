@@ -1,0 +1,107 @@
+# How do I implement latency compensation in a C++ audio graph?
+
+You’ve built a modular audio graph, but the moment you add a lookahead compressor or a linear-phase EQ to your drum bus, all the punch disappears. The transients are completely smeared because your drum track is now delayed by 512 samples, while the bass track isn't—they are completely out of phase.
+
+To fix this, you need Automatic Delay Compensation (ADC), sometimes called Plugin Delay Compensation (PDC).
+
+Here is how you actually solve it in a production C++ audio graph, rather than just ignoring it and hoping nobody notices the phase cancellation.
+
+## The Core Concept: Finding the Longest Path
+
+You don't speed up the slow signals (that's impossible). You intentionally delay the fast signals.
+
+1.  **Report:** Every node in your graph must report its inherent processing latency.
+2.  **Calculate:** The host traverses the graph to find the longest path from any input to the final output (the maximum latency).
+3.  **Compensate:** The host inserts delay buffers into all *other* paths so that all signals arrive at the master bus at the exact same time.
+
+## The Wrong Way: Ad-Hoc Delays
+
+The wrong way is to manually hardcode delay lines into your mixing buses when you notice phasing issues. This breaks the moment the user changes a plugin's oversampling rate or bypasses a node. The graph must handle this structurally.
+
+## The Right Way: Graph-Level Compensation
+
+In JUCE, the `AudioProcessorGraph` can handle this automatically, provided two things happen.
+
+First, your individual processors (the nodes) must accurately report their latency to the host whenever their internal state changes (e.g., when a user increases the lookahead time).
+
+```cpp
+void LookaheadCompressor::prepareToPlay(double sampleRate, int samplesPerBlock)
+{
+    // ... setup DSP ...
+    
+    // Lookahead of 5ms at 48kHz = 240 samples of latency
+    int lookaheadSamples = static_cast<int>(sampleRate * 0.005);
+    
+    // Crucial: Tell the host/graph about the delay we are introducing
+    setLatencySamples(lookaheadSamples); 
+}
+```
+
+Second, if you are building the graph routing yourself (or implementing a custom graph execution engine), you need to insert compensation nodes. 
+
+Here is a production-ready C++ ring buffer you can use as a compensation delay line when aligning those faster paths.
+
+```cpp
+class CompensationDelay
+{
+public:
+    CompensationDelay() = default;
+
+    void prepare(double sampleRate, int maxDelayInSamples)
+    {
+        buffer.setSize(1, maxDelayInSamples + 1);
+        buffer.clear();
+        writePos = 0;
+        delaySamples = 0;
+    }
+
+    void setDelay(int newDelaySamples)
+    {
+        // Thread-safe update assuming simple atomic or lock-free context
+        delaySamples = juce::jmax(0, newDelaySamples);
+    }
+
+    void process(juce::AudioBuffer<float>& audio, int numSamples)
+    {
+        if (delaySamples == 0)
+            return;
+
+        auto* channelData = audio.getWritePointer(0);
+        auto* delayData = buffer.getWritePointer(0);
+        const int bufferLength = buffer.getNumSamples();
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            const float input = channelData[i];
+            
+            // Write current sample into the delay line
+            delayData[writePos] = input;
+            
+            // Read the delayed sample
+            int readPos = writePos - delaySamples;
+            if (readPos < 0)
+                readPos += bufferLength;
+                
+            channelData[i] = delayData[readPos];
+            
+            // Advance and wrap write position
+            writePos = (writePos + 1) % bufferLength;
+        }
+    }
+
+private:
+    juce::AudioBuffer<float> buffer;
+    int writePos = 0;
+    int delaySamples = 0;
+};
+```
+
+When walking your graph, if you calculate that a parallel vocal track needs 240 samples of delay to align with the drum bus, you simply instantiate a `CompensationDelay`, call `setDelay(240)`, and insert it into the execution order for the vocal track.
+
+## Summary
+
+If you are building an audio engine, treat latency as a fundamental property of the signal flow, not an afterthought.
+
+*   **Nodes report latency:** Use `setLatencySamples()` in JUCE whenever internal DSP requires it.
+*   **The graph manages alignment:** The engine calculates the maximum path latency and pads shorter paths.
+*   **Use ring buffers:** A circular buffer is the cheapest and most reliable way to delay the "fast" paths to match the slow ones.
