@@ -1,0 +1,111 @@
+﻿\documentclass[12pt, a4paper]{article}
+
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{mathrsfs}
+
+
+% --- Page Setup ---
+\geometry{margin=1in}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Advanced Geometric Structures in LLM Latent Manifolds},
+    pdfpagemode=FullScreen,
+}
+
+
+% --- Custom Commands ---
+\newcommand{\manifold}{\mathcal{M}}
+\newcommand{\promptspace}{\mathcal{P}}
+\newcommand{\tangent}{T_p \manifold}
+
+
+% --- Title Information ---
+\title{\textbf{Research Proposal: Advanced Geometric Structures in LLM Latent Manifolds}}
+\author{Bill Westlake \\ \small{BSEE, MIS}}
+\date{March 2026}
+
+
+\begin{document}
+
+
+\maketitle
+
+
+\begin{abstract}
+This proposal outlines a phase-two expansion of the \textit{Differential Geometry of Prompt Space} framework. While prior work established the latent space of Large Language Models (LLMs) as a differentiable manifold $\manifold$, this research aims to formalize the navigation of that manifold. By integrating Riemannian metrics, parallel transport, and holonomy, we propose a rigorous calculus to model context stability, semantic distance, and the high-curvature transitions associated with emergent model behaviors and ``shocks.''
+\end{abstract}
+
+
+\section{Introduction}
+The rapid advancement of transformer-based architectures has necessitated a shift from heuristic prompt engineering to a formal mathematical treatment of LLM state transitions. Following the foundations laid in \textit{Prompt Algebra} (2025) and \textit{Differential Geometry of Prompt Space} (2026), this proposal seeks to define the dynamic laws governing prompt-response trajectories.
+
+
+\section{Research Objectives}
+The primary objective is to transition from a descriptive model to a \textbf{predictive calculus} of LLM behavior. Key goals include:
+\begin{itemize}
+    \item \textbf{Metric Formalization:} Define a Riemannian metric to quantify the ``semantic effort'' required for state transitions.
+    \item \textbf{Context Stability Modeling:} Utilize the Levi-Civita connection and parallel transport to measure how instructions (tangent vectors) evolve or decay over long sequences.
+    \item \textbf{Curvature Analysis:} Characterize regions of the manifold via sectional curvature to distinguish stability zones from divergence zones.
+\end{itemize}
+
+
+\section{Theoretical Framework}
+
+
+\subsection{The Latent Manifold and Riemannian Metric}
+Let $\promptspace$ denote the space of prompts and $\phi: \promptspace \to \mathbb{R}^n$ an embedding map into a latent vector space. We model the prompt space as a differentiable manifold $\manifold$. We define a Riemannian metric $g$ induced by the embedding:
+\begin{equation}
+    g_p(u, v) = \langle D\phi_p(u), D\phi_p(v) \rangle
+\end{equation}
+where $u, v \in \tangent$ and $D\phi_p$ is the differential of the embedding map. We define the ``cost'' or semantic action $S$ along a path $\gamma$ as:
+\begin{equation}
+    S[\gamma] = \int_0^1 \sqrt{g_{\gamma(t)}(\dot{\gamma}(t), \dot{\gamma}(t))} \, dt
+\end{equation}
+
+
+\subsection{Parallel Transport and the Connection}
+To address the phenomenon of context drift, we model a system prompt as a tangent vector $v \in \tangent$. As a response sequence unfolds along a trajectory $\gamma(t)$, the evolution of $v$ is governed by the covariant derivative:
+\begin{equation}
+    \nabla_{\dot{\gamma}(t)} v = 0
+\end{equation}
+A non-zero covariant derivative represents the degree to which a model deviates from its initial constraints.
+
+
+\subsection{Semantic Holonomy}
+We propose measuring model bias via holonomy along a closed loop $\gamma$:
+\begin{equation}
+    \mathcal{H}_\gamma(v) = v' - v
+\end{equation}
+Where $v'$ is the vector returned after transportation. This provides a measurable quantity for semantic distortion in cyclic tasks.
+
+
+\section{Methodology}
+\begin{enumerate}
+    \item \textbf{Metric Approximation:} Estimating local geometry via KL-divergence and cosine similarity proxies for $g_{ij}$.
+    \item \textbf{Curvature Mapping:} Utilizing \textit{Orthogonal Shock Operators} to identify high-curvature zones associated with affective or creative emergence.
+    \item \textbf{Geodesic Verification:} Comparing geodesic paths against linear interpolations to verify logical coherence in state transitions.
+\end{enumerate}
+
+
+\section{Conclusion}
+This framework moves LLM interaction from a heuristic art to a formal branch of functional geometry, enabling deterministic prompting and mathematical control over model emergence.
+
+
+\begin{thebibliography}{9}
+\bibitem{westlake2025} Westlake, B. (2025). \textit{Exploring Hilbert Space Characteristics in Large Language Models: Toward a Theory of Prompt Algebra.}
+\bibitem{westlake2026} Westlake, B. (2026). \textit{Differential Geometry of Prompt Space: A Framework for Modeling Emergent Behavior in Large Language Models.}
+\bibitem{docarmo1992} Do Carmo, M. P. (1992). \textit{Riemannian Geometry.} Birkhäuser.
+\end{thebibliography}
+
+
+\end{document}
