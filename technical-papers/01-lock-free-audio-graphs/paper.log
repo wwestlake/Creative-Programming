@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (MiKTeX 2.9.7440 64-bit) (preloaded format=pdflatex 2020.6.8)  30 JUL 2026 13:11
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (MiKTeX 2.9.7440 64-bit) (preloaded format=pdflatex 2020.6.8)  30 JUL 2026 14:28
 entering extended mode
 **./paper.tex
 (paper.tex
@@ -142,24 +142,23 @@ ckend-pdfmode.def"
 File: l3backend-pdfmode.def 2020-05-05 L3 backend support: PDF mode
 \l__kernel_color_stack_int=\count187
 \l__pdf_internal_box=\box47
-)
-No file paper.aux.
+) (paper.aux)
 \openout1 = `paper.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 15.
-LaTeX Font Info:    ... okay on input line 15.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 15.
-LaTeX Font Info:    ... okay on input line 15.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 15.
-LaTeX Font Info:    ... okay on input line 15.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 15.
-LaTeX Font Info:    ... okay on input line 15.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 15.
-LaTeX Font Info:    ... okay on input line 15.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 15.
-LaTeX Font Info:    ... okay on input line 15.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 15.
-LaTeX Font Info:    ... okay on input line 15.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
 
 ("C:\Users\wwestlake\AppData\Local\Programs\MiKTeX 2.9\tex/context/base/mkii\su
 pp-pdf.mkii"
@@ -182,52 +181,82 @@ Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
 85.
 )
-LaTeX Font Info:    Trying to load font information for U+msa on input line 17.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 15.
 
 
 ("C:\Users\wwestlake\AppData\Local\Programs\MiKTeX 2.9\tex/latex/amsfonts\umsa.
 fd"
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 17.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 15.
 
 
 ("C:\Users\wwestlake\AppData\Local\Programs\MiKTeX 2.9\tex/latex/amsfonts\umsb.
 fd"
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-Overfull \hbox (25.11076pt too wide) in paragraph at lines 20--21
+Overfull \hbox (25.11076pt too wide) in paragraph at lines 18--19
 \OT1/cmr/m/n/10 Producer/Single-Consumer (SPSC) ring buffers and atomic state s
 wapping---
  []
 
 
-Overfull \hbox (5.51291pt too wide) in paragraph at lines 28--28
+Overfull \hbox (5.51291pt too wide) in paragraph at lines 26--26
 []\OT1/cmr/bx/n/14.4 The Math-e-mat-i-cal Con-straints of the Au-dio Call-
  []
 
 [1
 
 {C:/Users/wwestlake/AppData/Local/MiKTeX/2.9/pdftex/config/pdftex.map}]
-[2] (paper.aux) ) 
+Overfull \hbox (2.68396pt too wide) in paragraph at lines 48--49
+[]\OT1/cmr/m/n/10.95 A com-mon anti-pattern in C++ au-dio de-vel-op-ment is us-
+ing a \OT1/cmtt/m/n/10.95 std::mutex
+ []
+
+[2]
+Overfull \hbox (1.86058pt too wide) in paragraph at lines 62--63
+\OT1/cmtt/m/n/10.95 std::memory[]order[]release\OT1/cmr/m/n/10.95 . This guar-a
+n-tees all prior mem-ory writes
+ []
+
+
+Overfull \hbox (9.94711pt too wide) in paragraph at lines 63--64
+[]\OT1/cmr/bx/n/10.95 Consumer\OT1/cmr/m/n/10.95 : Reads the \OT1/cmtt/m/n/10.9
+5 write \OT1/cmr/m/n/10.95 in-dex us-ing \OT1/cmtt/m/n/10.95 std::memory[]order
+[]acquire\OT1/cmr/m/n/10.95 .
+ []
+
+[3]
+Overfull \hbox (23.49382pt too wide) in paragraph at lines 81--82
+\OT1/cmr/m/n/10.95 Developing sta-ble C++ au-dio soft-ware re-quires aban-don-i
+ng tra-di-tional paradigms
+ []
+
+[4] (paper.aux) ) 
 Here is how much of TeX's memory you used:
- 2292 strings out of 480799
- 30859 string characters out of 2893917
- 264746 words of memory out of 3000000
- 18301 multiletter control sequences out of 15000+200000
- 538495 words of font info for 47 fonts, out of 3000000 for 9000
+ 2306 strings out of 480799
+ 31151 string characters out of 2893917
+ 266746 words of memory out of 3000000
+ 18311 multiletter control sequences out of 15000+200000
+ 540560 words of font info for 55 fonts, out of 3000000 for 9000
  1141 hyphenation exceptions out of 8191
  30i,6n,27p,609b,201s stack positions out of 5000i,500n,10000p,200000b,50000s
-<C:/Users/wwestlake/AppData/Local/Programs/MiKTeX 2.9/fonts/ty
-pe1/public/amsfonts/cm/cmbx10.pfb><C:/Users/wwestlake/AppData/Local/Programs/Mi
-KTeX 2.9/fonts/type1/public/amsfonts/cm/cmbx12.pfb><C:/Users/wwestlake/AppData/
-Local/Programs/MiKTeX 2.9/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/ww
-estlake/AppData/Local/Programs/MiKTeX 2.9/fonts/type1/public/amsfonts/cm/cmr12.
-pfb><C:/Users/wwestlake/AppData/Local/Programs/MiKTeX 2.9/fonts/type1/public/am
-sfonts/cm/cmr17.pfb>
-Output written on paper.pdf (2 pages, 72443 bytes).
+ <C:\Users\wwestlake\AppData\Local\MiKTeX\2.9\fonts/pk/ljfour/
+jknappen/ec/dpi600\tcrm1095.pk><C:/Users/wwestlake/AppData/Local/Programs/MiKTe
+X 2.9/fonts/type1/public/amsfonts/cm/cmbx10.pfb><C:/Users/wwestlake/AppData/Loc
+al/Programs/MiKTeX 2.9/fonts/type1/public/amsfonts/cm/cmbx12.pfb><C:/Users/wwes
+tlake/AppData/Local/Programs/MiKTeX 2.9/fonts/type1/public/amsfonts/cm/cmmi10.p
+fb><C:/Users/wwestlake/AppData/Local/Programs/MiKTeX 2.9/fonts/type1/public/ams
+fonts/cm/cmmi8.pfb><C:/Users/wwestlake/AppData/Local/Programs/MiKTeX 2.9/fonts/
+type1/public/amsfonts/cm/cmr10.pfb><C:/Users/wwestlake/AppData/Local/Programs/M
+iKTeX 2.9/fonts/type1/public/amsfonts/cm/cmr12.pfb><C:/Users/wwestlake/AppData/
+Local/Programs/MiKTeX 2.9/fonts/type1/public/amsfonts/cm/cmr17.pfb><C:/Users/ww
+estlake/AppData/Local/Programs/MiKTeX 2.9/fonts/type1/public/amsfonts/cm/cmsy10
+.pfb><C:/Users/wwestlake/AppData/Local/Programs/MiKTeX 2.9/fonts/type1/public/a
+msfonts/cm/cmtt10.pfb>
+Output written on paper.pdf (4 pages, 126966 bytes).
 PDF statistics:
- 29 PDF objects out of 1000 (max. 8388607)
+ 56 PDF objects out of 1000 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

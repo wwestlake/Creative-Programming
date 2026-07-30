@@ -6,8 +6,6 @@
 \usepackage{amssymb}
 \usepackage{graphicx}
 
-
-
 \title{Lock-Free Synchronization Paradigms in Real-Time Audio Graphs}
 \author{Bill Westlake}
 \date{\today}
@@ -26,18 +24,60 @@ In modern real-time audio systems, the processing graph must supply a continuous
 The fundamental challenge arises when the audio thread must communicate with the user interface (UI) thread or perform dynamic graph topology alterations. This paper bridges theoretical systems engineering with practical C++ implementations, illustrating how to circumvent priority inversion and maintain lock-free determinism.
 
 \section{The Mathematical Constraints of the Audio Callback}
-% TODO: Define latency, buffer size, and sample rate mathematically.
+The architecture of digital audio fundamentally relies on the processing of discrete samples at a constant rate, denoted as the sample rate $F_s$ (measured in Hertz). Because it is computationally inefficient to process audio sample-by-sample due to the overhead of function calls and OS context switching, audio is processed in contiguous blocks, or buffers, of size $N$ samples.
+
+This block-based processing enforces a strict upper bound on the available computation time. We define the maximum allowable latency, or buffer duration $L$ (in seconds), as:
+
+\begin{equation}
+L = \frac{N}{F_s}
+\end{equation}
+
+For example, given a buffer size of $N = 256$ samples and a sample rate of $F_s = 48000$ Hz, the buffer duration is approximately $L \approx 5.33$ milliseconds. 
+
+Let $E_t$ denote the execution time of the audio callback function (the duration it takes the CPU to compute the next block of $N$ samples). The fundamental invariant of real-time audio processing is:
+
+\begin{equation}
+E_t < L
+\end{equation}
+
+If $E_t$ exceeds $L$, the DAC exhausts its buffer before the software can provide the next block, resulting in a discontinuity in the analog output stream (an underrun). Therefore, every operation within the audio callback must have a bounded, deterministic worst-case execution time, effectively $\mathcal{O}(1)$ with respect to OS state. 
 
 \section{Priority Inversion and the Failure of Mutexes}
-% TODO: Explain OS scheduling and why blocking the audio thread is fatal.
+To satisfy the $E_t < L$ invariant, modern operating systems schedule the audio thread at a ``real-time'' or highest-possible priority level. Conversely, the User Interface (UI) thread operates at a lower priority, as a UI stutter is visually unpleasant but not systemically catastrophic.
+
+A common anti-pattern in C++ audio development is using a \texttt{std::mutex} to protect shared state (e.g., a plugin parameter) accessed by both the UI and audio threads. Suppose the UI thread acquires the mutex to update a parameter. If the audio callback fires and attempts to acquire the same mutex, it blocks. 
+
+By blocking on a lock held by the UI thread, the audio thread is effectively reduced to the priority of the UI thread. This is known as \textbf{Priority Inversion}. The failure becomes catastrophic if the OS scheduler decides to preempt the UI thread with a medium-priority background task (e.g., a network operation or disk I/O). The UI thread is stalled, the mutex remains locked, and the audio thread misses its deadline $L$.
+
+Thus, any mechanism that can yield the thread, invoke the OS scheduler, or block indefinitely (such as locks, memory allocations, or file I/O) mathematically invalidates the $E_t < L$ invariant and is unsafe for real-time DSP.
 
 \section{Lock-Free Ring Buffers}
-% TODO: Detail the implementation of memory-barrier protected FIFOs.
+To safely pass streams of data (such as MIDI events, automation curves, or recorded audio) between the UI thread and the audio thread, we must utilize lock-free data structures. The most common and performant structure for this is the Single-Producer / Single-Consumer (SPSC) Ring Buffer (FIFO).
+
+A lock-free ring buffer operates by maintaining separated \texttt{read} and \texttt{write} indices. The producer thread only modifies the \texttt{write} index, and the consumer thread only modifies the \texttt{read} index. 
+
+However, in multi-core architectures, CPU caches can reorder memory instructions. If the producer updates the data array but the updated \texttt{write} index propagates to the consumer's cache before the data itself, the consumer reads garbage. We enforce memory visibility using C++ atomics:
+
+\begin{itemize}
+    \item \textbf{Producer}: Writes the data, then updates the \texttt{write} index using \texttt{std::memory\_order\_release}. This guarantees all prior memory writes (the data) are visible before the index updates.
+    \item \textbf{Consumer}: Reads the \texttt{write} index using \texttt{std::memory\_order\_acquire}. This guarantees that subsequent memory reads (the data) will see the values written prior to the release operation.
+\end{itemize}
+
+This memory ordering ensures thread safety without invoking the OS scheduler, preserving determinism in the audio callback.
 
 \section{Atomic State Swapping and Double-Buffering}
-% TODO: How to hot-swap plugin parameters and states without locks or allocation.
+For heavy, non-streamed data updates---such as loading a new impulse response (IR) file or swapping a complex plugin state---ring buffers are insufficient. Allocating the memory for the new state inside the audio callback is strictly prohibited, as \texttt{malloc} or \texttt{new} are unbounded system calls that acquire internal locks.
+
+The solution is \textbf{Double-Buffering} paired with \textbf{Atomic State Swapping}.
+
+1. The UI thread allocates memory for the new state and performs all heavy computation (e.g., parsing a file or calculating filter coefficients) in the background.
+2. The UI thread stores this new state in a dynamically allocated object, obtaining a pointer to it.
+3. The UI thread executes an atomic exchange operation (\texttt{std::atomic<State*>::exchange}) to swap the global state pointer with the newly allocated pointer.
+4. On the next callback, the audio thread safely reads the new atomic pointer and begins processing with the new state instantly.
+
+Crucially, the old state pointer returned by the exchange operation cannot be immediately deleted by the UI thread, as the audio thread might still be actively processing a block using that pointer. We must defer deletion using a mechanism like Hazard Pointers, Reference Counting (e.g., \texttt{std::shared\_ptr} via \texttt{std::atomic\_load}), or sending the old pointer back to the UI thread via a lock-free FIFO for garbage collection.
 
 \section{Conclusion}
-% TODO: Summarize findings and best practices for C++ DSP architecture.
+Developing stable C++ audio software requires abandoning traditional paradigms of concurrent programming. By modeling the audio callback mathematically as a bounded temporal environment, it becomes evident that OS-level synchronization primitives are inadequate. Emulating message passing via SPSC lock-free ring buffers, and managing complex state transitions via atomic pointer swapping, allows developers to achieve high-performance, deterministic, and artifact-free digital signal processing.
 
 \end{document}
