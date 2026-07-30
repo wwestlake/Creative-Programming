@@ -1,0 +1,114 @@
+================================================================================
+FORMATTING NOTE: 
+Apply H2 formatting to section titles. 
+Click the Quora "{}" code button to insert the blocks marked by [CODE BLOCK].
+Use standard bulleted lists for the summary.
+================================================================================
+
+You've set your buffer size to 256 samples at 44.1kHz, so you expect your audio callback to fire exactly every 5.8 milliseconds. Instead, you're measuring intervals of 3ms, then 8ms, then 6ms, and your MIDI clocks or LFOs are drifting out of sync.
+
+What Callback Jitter Is
+
+Your audio interface consumes samples at a perfectly steady rate, driven by a dedicated hardware crystal oscillator. But your computer's CPU does not execute your audio callback in lockstep with that hardware clock. The callback is requested by the OS driver when the audio buffer starts getting low, meaning the time between OS-level callback invocations will inherently fluctuate. This variance in delivery time is jitter.
+
+Why It Happens
+
+Audio threads run in a preemptive multitasking OS. Even with real-time priority, your thread is subject to:
+- OS Scheduling: The kernel might be momentarily busy handling a high-priority hardware interrupt (like a network card or USB controller).
+- CPU Throttling and Core Parking: OS power management can downclock the CPU or wake cores from sleep, causing the callback to start slightly later or take longer to complete.
+- Resource Contention: A massive UI repaint on the main message thread might momentarily lock a memory bus or flush a cache that the audio thread needs.
+
+How It Affects Your DSP
+
+If your DSP logic depends on physical wall-clock time to calculate durations, it will break. If you trigger an envelope, update a sequencer step, or generate MIDI clocks by checking the system timer inside your audio loop, the fluctuating callback intervals will inject timing slop directly into your audio. This sounds like phase issues, sloppy grooves, or drifting pitch.
+
+The Wrong Way: Wall-Clock Time
+
+Here is a broken approach to building an oscillator inside an audio callback. It relies on the system clock to calculate elapsed time. As the callback jitter changes, the phase increment fluctuates, and the frequency warbles.
+
+[CODE BLOCK]
+// THE WRONG WAY: Relying on wall-clock time in the audio callback
+class BrokenOscillator 
+{
+public:
+    void process(juce::AudioBuffer<float>& buffer) 
+    {
+        // NEVER DO THIS in an audio thread!
+        auto currentTimeMs = juce::Time::getMillisecondCounterHiRes();
+        auto elapsedTime = currentTimeMs - lastTimeMs;
+        lastTimeMs = currentTimeMs;
+
+        // The phase increment will jitter wildly because elapsedTime is unstable
+        float phaseIncrement = frequency * (elapsedTime / 1000.0f);
+        
+        auto* channelData = buffer.getWritePointer(0);
+        for (int i = 0; i < buffer.getNumSamples(); ++i) 
+        {
+            channelData[i] = std::sin(currentPhase);
+            currentPhase += phaseIncrement;
+            if (currentPhase >= juce::MathConstants<float>::twoPi)
+                currentPhase -= juce::MathConstants<float>::twoPi;
+        }
+    }
+
+private:
+    double lastTimeMs = juce::Time::getMillisecondCounterHiRes();
+    float currentPhase = 0.0f;
+    float frequency = 440.0f;
+};
+[END CODE BLOCK]
+
+The Right Way: Count Samples
+
+The golden rule of audio programming: Never rely on physical wall-clock time inside the audio callback. Always count samples.
+
+One sample represents exactly 1.0 / sampleRate seconds, regardless of when the OS actually scheduled the callback or how long it took to execute. The hardware DAC guarantees this timing. If you process 256 samples, exactly 5.8ms of audio time has passed, period.
+
+[CODE BLOCK]
+// THE RIGHT WAY: Sample-accurate phase calculation
+class SolidOscillator 
+{
+public:
+    void prepareToPlay(double newSampleRate, int samplesPerBlock)
+    {
+        sampleRate = newSampleRate;
+        phaseIncrement = juce::MathConstants<float>::twoPi * frequency / sampleRate;
+    }
+
+    void process(juce::AudioBuffer<float>& buffer) 
+    {
+        // The block is exactly buffer.getNumSamples() long.
+        // We don't care what the wall-clock time is.
+        auto* channelData = buffer.getWritePointer(0);
+        
+        for (int i = 0; i < buffer.getNumSamples(); ++i) 
+        {
+            channelData[i] = std::sin(currentPhase);
+            currentPhase += phaseIncrement;
+            
+            // Keep phase within [0, 2pi]
+            if (currentPhase >= juce::MathConstants<float>::twoPi)
+                currentPhase -= juce::MathConstants<float>::twoPi;
+        }
+    }
+
+private:
+    double sampleRate = 44100.0;
+    float currentPhase = 0.0f;
+    float phaseIncrement = 0.0f;
+    float frequency = 440.0f;
+};
+[END CODE BLOCK]
+
+A Note on Thread Priorities
+
+If you are using a framework like JUCE, the underlying audio device layer handles thread priorities for you. However, if you are writing your own audio driver backend (e.g., programming directly against ALSA, CoreAudio, or WASAPI), you must explicitly elevate your audio thread to a real-time or time-critical priority class. 
+
+On Windows, this means calling SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL). On macOS, you use the Mach thread API to opt into the THREAD_TIME_CONSTRAINT_POLICY. Failure to do this means the OS scheduler will treat your audio thread like a background web browser tab, resulting in massive jitter, priority inversions, and inevitable audio dropouts.
+
+Summary
+
+- Hardware is strict, software is loose: The DAC eats samples at a perfect rate; the OS delivers them inconsistently.
+- Time is samples: Always calculate time passing by counting buffer.getNumSamples().
+- Ban system clocks: juce::Time, std::chrono, and GetTickCount() have no place in your processBlock.
+- Set priorities: If writing custom device layers, explicitly request real-time thread priority from the OS kernel.

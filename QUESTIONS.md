@@ -18,11 +18,11 @@ Each links to its answer document when written.
 | 9 | How do I load audio files from disk without blocking the UI in C++? | audio-file-loading-background-thread | ✅ Written |
 | 10 | How do I handle audio buffer underruns in C++? | audio-buffer-underruns | ✅ Written |
 | 11 | How do I build a lock-free parameter automation system in C++? | lock-free-parameter-automation | ✅ Written |
-| 12 | Why does my audio sound different at different sample rates in C++? | sample-rate-differences | 📝 Queued |
-| 13 | How do I implement proper gain staging in a C++ audio mixer? | gain-staging | 📝 Queued |
-| 14 | How do I handle plugin state changes without interrupting audio playback in C++? | plugin-state-changes-no-interruption | 📝 Queued |
-| 15 | Why does my audio callback timing jitter and what do I do about it? | audio-callback-timing-jitter | 📝 Queued |
-| 16 | How do I structure an audio processing graph in C++? | audio-processing-graph | 📝 Queued |
+| 12 | Why does my audio sound different at different sample rates in C++? | sample-rate-differences | ✅ Written |
+| 13 | How do I implement proper gain staging in a C++ audio mixer? | gain-staging | ✅ Written |
+| 14 | How do I handle plugin state changes without interrupting audio playback in C++? | plugin-state-changes-no-interruption | ✅ Written |
+| 15 | Why does my audio callback timing jitter and what do I do about it? | audio-callback-timing-jitter | ✅ Written |
+| 16 | How do I structure an audio processing graph in C++? | audio-processing-graph | ✅ Written |
 | 17 | How do I safely load and unload VST3 plugins at runtime in C++? | vst3-load-unload-runtime | 📝 Queued |
 | 18 | How do I implement real-time safe logging in a C++ audio app? | realtime-safe-logging | 📝 Queued |
 | 19 | How do I handle multi-channel audio routing in C++? | multi-channel-audio-routing | 📝 Queued |

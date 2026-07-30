@@ -1,0 +1,62 @@
+==== FORMATTING NOTE: Quora does not support markdown. Please use the formatting toolbar to apply H2 headers to the capitalized section titles. Replace [CODE BLOCK] sections with Quora's native code formatting block. ====
+
+Why does my audio sound different at different sample rates in C++?
+
+You load up your shiny new C++ audio plugin in your DAW at 44.1kHz, and it sounds massive. You send it to a collaborator running their session at 96kHz, and suddenly the LFOs are twice as fast, the EQ sounds shrill, and the reverb tail sounds like a tin can. 
+
+When your DSP sounds radically different across sample rates, it almost always comes down to either hardcoded constants or a misunderstanding of how discrete time relates to physical time.
+
+WHY TIME CHANGES (MODULATORS AND DELAYS)
+
+At the core of DSP, time is measured in samples, not seconds. If you want an oscillator to complete one cycle per second (1 Hz), it needs to advance its phase by a specific amount every sample.
+
+If you calculate that phase increment assuming a sample rate of 44.1kHz, but the host is running at 96kHz, your oscillator will iterate through its cycle much faster. The physical time it takes to process 44,100 samples at 96kHz is only about 0.46 seconds. 
+
+Here is the WRONG way to set up an oscillator in JUCE:
+
+[CODE BLOCK]
+void MyPlugin::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    // WRONG: Hardcoding the sample rate or assuming it's 44.1k
+    double assumedSampleRate = 44100.0; 
+    lfo.setFrequency (1.0f, assumedSampleRate); 
+}
+[END CODE BLOCK]
+
+If you do this, your 1 Hz LFO will run at 2.17 Hz in a 96kHz session. 
+
+The RIGHT way is to strictly use the sampleRate passed by the host during initialization:
+
+[CODE BLOCK]
+void MyPlugin::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    // RIGHT: Always pass the host's sample rate down to your DSP objects
+    lfo.setFrequency (1.0f, sampleRate);
+    
+    // Update any custom delay line lengths in samples
+    delayBuffer.setSize (1, static_cast<int> (sampleRate * delayTimeInSeconds));
+}
+[END CODE BLOCK]
+
+Every time prepareToPlay is called, you must re-calculate any variable that depends on the sample rate. Delay line lengths in samples, oscillator phase increments, and envelope release times all need to be recomputed.
+
+WHY TONE CHANGES (FILTER COEFFICIENTS AND NYQUIST)
+
+Filters are even more sensitive to sample rate changes. The coefficients of an IIR (Infinite Impulse Response) filter determine its shape, cutoff frequency, and resonance. These coefficients are calculated using the sample rate. If you don't update them, a 1kHz lowpass at 44.1kHz becomes a ~2.1kHz lowpass at 96kHz.
+
+However, even if you update your coefficients correctly, you might notice your high-frequency EQs sound "cramped" or harsh at 44.1kHz compared to 96kHz.
+
+This is due to Nyquist frequency warping. When converting analog filter designs to digital using the standard Bilinear Transform (BLT), the infinite frequency response of the analog filter is squashed into the limited digital bandwidth (up to the Nyquist frequency, which is half your sample rate). 
+
+As a filter's cutoff approaches Nyquist, its shape becomes distorted. A wide bell curve at 15kHz might look perfectly symmetrical at 96kHz, but at 44.1kHz, the upper half of the bell slams into the 22.05kHz Nyquist wall and gets crushed.
+
+To fix this, you have two primary options:
+1. Oversampling: Run your EQ or non-linear processing at 2x or 4x the host sample rate. This pushes the Nyquist frequency far beyond the range of human hearing, allowing the filter shapes to resolve naturally in the audible spectrum.
+2. Decramped Filters: Use specific filter design algorithms (like Orfanidis or MZTi methods) that compensate for BLT warping without the CPU overhead of oversampling. 
+
+SUMMARY
+
+• Never hardcode 44100.0 or 48000.0 anywhere in your DSP code.
+• Always recalculate filter coefficients, delay lengths, and phase increments inside prepareToPlay using the provided sampleRate.
+• If your high-end sounds harsh at low sample rates but smooth at high sample rates, you are likely hearing Nyquist filter cramping. Look into oversampling or decramped filter topologies.
+• Always test your plugins at 44.1kHz, 48kHz, and 96kHz before shipping.
