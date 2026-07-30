@@ -44,3 +44,11 @@ Each links to its answer document when written.
 
 - `cpp-audio/<slug>.md` — source article (GitHub)
 - `cpp-audio/<slug>-quora.txt` — Quora paste-ready version
+
+---
+
+## Technical Paper Summaries
+
+| # | Topic | File | Status | Quora | LagDaemon |
+|---|----------|------|--------|-------|-----------|
+| 1 | Lock-Free Synchronization Paradigms | technical-papers/01-lock-free-audio-graphs/quora-article | ✅ Written | | |
